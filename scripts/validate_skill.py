@@ -23,7 +23,7 @@ def main() -> None:
     if not SKILL_PATH.exists():
         fail("SKILL.md not found")
 
-    text = SKILL_PATH.read_text()
+    text = SKILL_PATH.read_text(encoding="utf-8")
 
     frontmatter_match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
     if frontmatter_match is None:
