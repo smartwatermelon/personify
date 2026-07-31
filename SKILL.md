@@ -1,7 +1,7 @@
 ---
 name: personify
 version: 0.1.0
-description: Strip AI-writing tells from prose Andrew is about to send, publish, or ship. Use when editing or reviewing text (emails, docs, comments, PRs, blog drafts, essays) that will be read by someone else. Built on Wikipedia's "Signs of AI writing" taxonomy (via blader/humanizer, MIT), extended with patterns Andrew flagged himself.
+description: Strip AI-writing tells from prose the user is about to send, publish, or ship. Use when editing or reviewing text (emails, docs, comments, PRs, blog drafts, essays) that will be read by someone else. Built on Wikipedia's "Signs of AI writing" taxonomy (via blader/humanizer, MIT), extended with patterns Andrew (@smartwatermelon) flagged.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
 
@@ -115,7 +115,7 @@ A clean human writer can hit several of these once without being AI. Don't treat
 - A single clipped sentence for emphasis
 - Unsourced claims in casual writing — most human writing is unsourced too
 
-Look for **clusters**, not single hits. Andrew's own read on what counts as a cluster may differ from any published list — when in doubt, ask rather than defaulting to a canonical source.
+Look for **clusters**, not single hits. the user's own read on what counts as a cluster may differ from any published list — when in doubt, ask rather than defaulting to a canonical source.
 
 ## Add voice, don't just subtract tells
 
