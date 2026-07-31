@@ -12,10 +12,10 @@ Edit text to remove the statistical fingerprints of LLM writing, without flatten
 ## Process
 
 1. Scan for the patterns below.
-2. Rewrite, don't delete — cover everything the original covers, don't compress it into bullet-point paraphrase.
+2. Rewrite, don't delete: cover everything the original covers, don't compress it into bullet-point paraphrase.
 3. Preserve the specifics: names, numbers, concrete details. Never invent facts, dates, or examples that weren't in the source.
 4. Self-audit: "what in this rewrite would still tag as obviously AI-generated?" Fix those, then output.
-5. No em dashes or en dashes in the final text — hard rule, not a preference. Replace with a period, comma, colon, or parentheses.
+5. No em dashes or en dashes in the final text: hard rule, not a preference. Replace with a period, comma, colon, or parentheses.
 
 ## Pattern groups
 
@@ -78,12 +78,12 @@ Each section or closing line tries to out-stake the last ("a categorically large
 ### O. Style mechanics
 
 - Em/en dashes: cut, no exceptions (see Process, step 5)
-- Boldface used mechanically on scattered terms — drop it
-- "**Label:** content" bullet lists — convert to prose or a plain list
-- Title Case Headings — sentence case instead
-- Emoji as decoration — remove
-- Curly quotes — straight quotes
-- Hyphenating predicate-position compounds ("the report is high-quality") — only hyphenate when attributive ("a high-quality report")
+- Boldface used mechanically on scattered terms: drop it
+- "**Label:** content" bullet lists: convert to prose or a plain list
+- Title Case Headings: sentence case instead
+- Emoji as decoration: remove
+- Curly quotes: straight quotes
+- Hyphenating predicate-position compounds ("the report is high-quality"): only hyphenate when attributive ("a high-quality report")
 
 ### P. Chatbot residue
 
@@ -99,7 +99,7 @@ Nearly every paragraph lands on a standalone, quotable epigram ("Volume reads as
 
 ### S. Emotional-arc section headers
 
-Short section headers that name a mood or beat rather than a topic ("The weather," "The scream," "The close") turn the piece into a script narrating its own dramatic structure. Fine once as a title. A full set of them running through one piece tips into self-narration — see group H.
+Short section headers that name a mood or beat rather than a topic ("The weather," "The scream," "The close") turn the piece into a script narrating its own dramatic structure. Fine once as a title. A full set of them running through one piece tips into self-narration: see group H.
 
 ### T. One extended metaphor doing all the structural work
 
@@ -113,16 +113,16 @@ A clean human writer can hit several of these once without being AI. Don't treat
 - Formal vocabulary used correctly and specifically (not the cluster in group B)
 - Curly quotes alone (most editors auto-curl)
 - A single clipped sentence for emphasis
-- Unsourced claims in casual writing — most human writing is unsourced too
+- Unsourced claims in casual writing: most human writing is unsourced too
 
-Look for **clusters**, not single hits. the user's own read on what counts as a cluster may differ from any published list — when in doubt, ask rather than defaulting to a canonical source.
+Look for **clusters**, not single hits. The user's own read on what counts as a cluster may differ from any published list; when in doubt, ask rather than defaulting to a canonical source.
 
 ## Add voice, don't just subtract tells
 
 Half the job is removing patterns. The other half is having something behind the sentence:
 
 - Real opinions, stated as opinions, including "I don't know" or mixed feelings
-- Varied sentence length — short, then a longer one that takes its time
+- Varied sentence length: short, then a longer one that takes its time
 - Specific, hard-to-fabricate detail over rounded-off generality
 - First-person when it's honest, dropped when it isn't warranted (technical/reference writing stays neutral)
 
@@ -130,9 +130,9 @@ Half the job is removing patterns. The other half is having something behind the
 
 This skill started as a fork-in-spirit of [blader/humanizer](https://github.com/blader/humanizer) (MIT license), which is itself built on Wikipedia's "Signs of AI writing" guide (WikiProject AI Cleanup). Credit to Blader for the original taxonomy and the draft -> audit -> rewrite process this skill still follows. This is a from-scratch rewrite rather than a literal fork, kept independent on purpose: Andrew wants a list that reflects his own read of what sounds AI-generated, updated on his own schedule, rather than tracking someone else's repo.
 
-Pattern groups E through K were added after close reading of specific pieces flagged as bad examples in conversation with Claude — a viral essay dense with rhetorical-hinge writing. Pattern groups R through T were added after reading a skilled human writer's advice newsletter whose polish leans hard on techniques that double as classic model tells: dense aphorism, mood-named section headers, one metaphor stretched across the whole piece. Sources kept off the record intentionally; the patterns are what matter, not the byline.
+Pattern groups E through K were added after close reading of specific pieces flagged as bad examples in conversation with Claude: a viral essay dense with rhetorical-hinge writing. Pattern groups R through T were added after reading a skilled human writer's advice newsletter whose polish leans hard on techniques that double as classic model tells: dense aphorism, mood-named section headers, one metaphor stretched across the whole piece. Sources kept off the record intentionally; the patterns are what matter, not the byline.
 
-This file does not track upstream version changes. Andrew's own judgment on what reads as AI-generated is the source of truth here, not the Wikipedia list or any third-party repo — extend or edit pattern groups directly as new tells get spotted.
+This file does not track upstream version changes. Andrew's own judgment on what reads as AI-generated is the source of truth here, not the Wikipedia list or any third-party repo; extend or edit pattern groups directly as new tells get spotted.
 
 ## Staying current
 
