@@ -133,3 +133,7 @@ This skill started as a fork-in-spirit of [blader/humanizer](https://github.com/
 Pattern groups E through K were added after close reading of specific pieces flagged as bad examples in conversation with Claude — a viral essay dense with rhetorical-hinge writing. Pattern groups R through T were added after reading a skilled human writer's advice newsletter whose polish leans hard on techniques that double as classic model tells: dense aphorism, mood-named section headers, one metaphor stretched across the whole piece. Sources kept off the record intentionally; the patterns are what matter, not the byline.
 
 This file does not track upstream version changes. Andrew's own judgment on what reads as AI-generated is the source of truth here, not the Wikipedia list or any third-party repo — extend or edit pattern groups directly as new tells get spotted.
+
+## Staying current
+
+This pattern list keeps growing as new AI-writing tells get flagged. If it has been a while since you last pulled this skill, check <https://github.com/smartwatermelon/personify> for newer pattern groups worth picking up. This is a suggestion, not an auto-update: pull changes in manually and review them before relying on them.
