@@ -1,7 +1,7 @@
 ---
 name: personify
 version: 0.1.0
-description: Strip AI-writing tells from prose the user is about to send, publish, or ship. Use when editing or reviewing text (emails, docs, comments, PRs, blog drafts, essays) that will be read by someone else. Built on Wikipedia's "Signs of AI writing" taxonomy (via blader/humanizer, MIT), extended with patterns Andrew (@smartwatermelon) flagged.
+description: Strip AI-writing tells from prose before sending, publishing, or shipping it. Use when editing text (emails, docs, PRs, blog drafts) someone else will read. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
 
