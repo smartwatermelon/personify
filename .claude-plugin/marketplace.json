@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
+  "name": "personify",
+  "owner": {
+    "name": "smartwatermelon",
+    "url": "https://github.com/smartwatermelon"
+  },
+  "description": "The personify skill, installable as a Claude Code plugin.",
+  "plugins": [
+    {
+      "name": "personify",
+      "source": "./",
+      "description": "Strip AI-writing tells from prose before it's sent, published, or shipped, without flattening it into voiceless generic writing.",
+      "license": "MIT",
+      "keywords": [
+        "writing",
+        "editing",
+        "ai-detection",
+        "prose",
+        "style",
+        "skill"
+      ]
+    }
+  ]
+}
