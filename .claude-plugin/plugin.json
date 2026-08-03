@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "personify",
   "description": "Strip AI-writing tells from prose before it's sent, published, or shipped, without flattening it into voiceless generic writing.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "smartwatermelon",
     "url": "https://github.com/smartwatermelon"
@@ -10,5 +10,6 @@
   "homepage": "https://github.com/smartwatermelon/personify",
   "repository": "https://github.com/smartwatermelon/personify",
   "license": "MIT",
-  "keywords": ["writing", "editing", "ai-detection", "prose", "style", "skill"]
+  "keywords": ["writing", "editing", "ai-detection", "prose", "style", "skill"],
+  "skills": ["./"]
 }
