@@ -1,7 +1,7 @@
 ---
 name: personify
 version: 0.1.0
-description: Strip AI-writing tells from prose before sending, publishing, or shipping it. Use when editing text (emails, docs, PRs, blog drafts) someone else will read. Derivative of blader/humanizer (MIT); see license field.
+description: Strip AI-writing tells from prose before sending, publishing, or shipping it. Use when editing text (emails, docs, comments, PRs, blog drafts, essays) someone else will read. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
 
@@ -105,6 +105,10 @@ Short section headers that name a mood or beat rather than a topic ("The weather
 
 A single image introduced early (a dial, a fire, a tax) that the piece keeps returning to as its organizing device for every subsequent point. Effective in small doses; overused it becomes a crutch that substitutes for making the next point on its own terms. Watch for a metaphor reappearing three or more times as connective tissue rather than illustration.
 
+### U. Self-justifying importance claims
+
+A sentence asserts its own importance in place of content: "the key insight here, and this is the crucial part, is that the cache is cold on first request." Cut the assertion, keep the fact. Distinct from H (narrating the outline) and A (inflating an ordinary fact): here the sentence is about its own weight, not the structure or the subject.
+
 ## What NOT to flag
 
 A clean human writer can hit several of these once without being AI. Don't treat as reliable in isolation:
@@ -124,13 +128,21 @@ Half the job is removing patterns. The other half is having something behind the
 - Real opinions, stated as opinions, including "I don't know" or mixed feelings
 - Varied sentence length: short, then a longer one that takes its time
 - Specific, hard-to-fabricate detail over rounded-off generality
-- First-person when it's honest, dropped when it isn't warranted (technical/reference writing stays neutral)
+- First-person when it's honest, dropped when it isn't warranted (technical/reference writing stays neutral; see also Technical content below)
+
+## Technical content
+
+For code reviews, status updates, technical docs, and proposals: cut words, not content. Process step 2 still applies in full, keep every fact, caveat, and detail the original covers. The target is the same information in fewer words.
+
+- Drop framing that sets up a point instead of making it: "in this section we'll cover," "to understand this, it helps to first."
+- Cut a subordinate clause if it only restates or hedges the clause it's attached to.
+- Use a list when the content is genuinely a list (steps, findings, changes). Don't force prose into a list, or a list into prose, when the other shape fits the content better.
 
 ## Provenance
 
 This skill started as a fork-in-spirit of [blader/humanizer](https://github.com/blader/humanizer) (MIT license), which is itself built on Wikipedia's "Signs of AI writing" guide (WikiProject AI Cleanup). Credit to Blader for the original taxonomy and the draft -> audit -> rewrite process this skill still follows. This is a from-scratch rewrite rather than a literal fork, kept independent on purpose: Andrew wants a list that reflects his own read of what sounds AI-generated, updated on his own schedule, rather than tracking someone else's repo.
 
-Pattern groups E through K were added after close reading of specific pieces flagged as bad examples in conversation with Claude: a viral essay dense with rhetorical-hinge writing. Pattern groups R through T were added after reading a skilled human writer's advice newsletter whose polish leans hard on techniques that double as classic model tells: dense aphorism, mood-named section headers, one metaphor stretched across the whole piece. Sources kept off the record intentionally; the patterns are what matter, not the byline.
+Pattern groups E through K were added after close reading of specific pieces flagged as bad examples in conversation with Claude: a viral essay dense with rhetorical-hinge writing. Pattern groups R through T were added after reading a skilled human writer's advice newsletter whose polish leans hard on techniques that double as classic model tells: dense aphorism, mood-named section headers, one metaphor stretched across the whole piece. Pattern group U was added from a GitHub issue flagging a specific sentence that named its own importance rather than earning it. Sources kept off the record intentionally; the patterns are what matter, not the byline.
 
 This file does not track upstream version changes. Andrew's own judgment on what reads as AI-generated is the source of truth here, not the Wikipedia list or any third-party repo; extend or edit pattern groups directly as new tells get spotted.
 
