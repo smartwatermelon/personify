@@ -1,6 +1,6 @@
 ---
 name: personify
-version: 0.1.2
+version: 0.1.3
 description: Strip AI-writing tells from prose before sending, publishing, or shipping it. Use when editing text (emails, docs, comments, PRs, blog drafts, essays) someone else will read. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
@@ -14,7 +14,7 @@ Edit text to remove the statistical fingerprints of LLM writing, without flatten
 1. Scan for the patterns below.
 2. Rewrite, don't delete: cover everything the original covers, don't compress it into bullet-point paraphrase.
 3. Preserve the specifics: names, numbers, concrete details. Never invent facts, dates, or examples that weren't in the source.
-4. Self-audit: "what in this rewrite would still tag as obviously AI-generated?" Fix those, then output.
+4. Self-audit: "what in this rewrite would still tag as obviously AI-generated?" For GitHub PR descriptions and review comments specifically, also ask: "would a teammate skimming this diff have written a header here?" and "am I explaining what I didn't do, when nobody asked?" Fix those, then output.
 5. No em dashes or en dashes in the final text: hard rule, not a preference. Replace with a period, comma, colon, or parentheses.
 
 ## Pattern groups
@@ -109,6 +109,10 @@ A single image introduced early (a dial, a fire, a tax) that the piece keeps ret
 
 A sentence asserts its own importance in place of content: "the key insight here, and this is the crucial part, is that the cache is cold on first request." Cut the assertion, keep the fact. Distinct from H (narrating the outline) and A (inflating an ordinary fact): here the sentence is about its own weight, not the structure or the subject.
 
+### V. Point-by-point question mirroring
+
+Quoting or restating each of the asker's sub-points in order, then answering each fully in its own paragraph, so the response's structure exactly tracks the question's enumeration. This reads as assistant-triage regardless of how good the individual answers are: a human reply merges points, answers out of order, or skips a sub-question the first answer already covers. Fix: answer in flowing prose using the order the points naturally connect in, not the order they were asked in. This is independent of grammar: a sentence being complete and correctly punctuated is not itself a tell (see What NOT to flag). Don't fix this by breaking sentences into fragments; fix it by changing the response's shape, not its sentence quality.
+
 ## What NOT to flag
 
 A clean human writer can hit several of these once without being AI. Don't treat as reliable in isolation:
@@ -118,6 +122,7 @@ A clean human writer can hit several of these once without being AI. Don't treat
 - Curly quotes alone (most editors auto-curl)
 - A single clipped sentence for emphasis
 - Unsourced claims in casual writing: most human writing is unsourced too
+- Complete, grammatical, one-point-per-paragraph writing: correct grammar is not itself a tell, even when every sentence is a full sentence. If that register is the writer's real voice, keep it. The thing pattern V flags is response *shape* (mirroring a question's enumeration point-by-point), never sentence quality. Don't fix V by chopping a real writer's sentences into fragments.
 
 Look for **clusters**, not single hits. The user's own read on what counts as a cluster may differ from any published list; when in doubt, ask rather than defaulting to a canonical source.
 
@@ -138,11 +143,43 @@ For code reviews, status updates, technical docs, and proposals: cut words, not 
 - Cut a subordinate clause if it only restates or hedges the clause it's attached to.
 - Use a list when the content is genuinely a list (steps, findings, changes). Don't force prose into a list, or a list into prose, when the other shape fits the content better.
 
+## GitHub PR descriptions and review comments
+
+A specific failure mode within technical content: unearned structure and defensive completeness, rather than flowery prose. None of the pattern groups above catch it, because the sentences themselves can be plain. What reads as AI-generated here is ceremony: headers a one-line change doesn't need, and a rundown of tests that don't apply that nobody asked about.
+
+- **Size the description to the diff.** A one-line, self-explanatory change gets a one-line description. Headers ("Summary," "Testing," "Impact") are earned by a PR that actually spans multiple files or concerns and needs navigation, not a default template.
+- **State what and why. Never how.** The diff is the how. If the description restates what the code already shows, cut it.
+- **No inflated stakes on routine changes.** "grants the service account the permissions it needs" beats "a critical step in modernizing our access architecture." Say the plain thing.
+- **Match the local register.** If the team's PRs run to fragments and lowercase starts, that's the norm, not a lapse. Don't upgrade a one-line change into a complete, formally punctuated paragraph out of reflex.
+- **Label review-comment severity explicitly.** "Nit:" / "Optional:" / "FYI:" instead of diplomatic hedging that leaves the reader guessing whether something is blocking.
+- **No chatbot sign-offs.** Cut "let me know if you have questions," "happy to adjust," "hope this helps." If there's a real open question, ask it directly and stop there.
+- **Code blocks for exact output.** Terminal output, error messages, and diffs go in a code block verbatim, never paraphrased into prose.
+- **One paragraph is usually the ceiling for "why."** Plenty of real, substantial PRs ship with no written description beyond the title. Default to letting the title and diff carry the load; add prose only when a reviewer would otherwise be confused.
+
+Worked example, a small IAM permissions change:
+
+Before (defensive completeness, unearned headers):
+
+> ## Security-critical access delta
+>
+> This grants the `deploy-bot` service account `sts:AssumeRole` on the `ci-release` role and adds it to that role's trust policy. This is a narrow, existing-role grant to a single named principal, not a new role or broadened trust.
+>
+> ## Validation
+>
+> No `modules/iam_role` changes, so no test suite applies. No policy coverage applies to this path, so no targeted policy-check run. Reviewed the diff directly; no plan/apply run, per repo guardrails.
+>
+> This PR is ready to merge upon approval.
+
+After (matches the team's actual register):
+> Grants `deploy-bot` `ci-release` assume-role access (needed for the new release pipeline). `terraform fmt` clean, no manual steps after merge.
+
+Everything true in the original survives. What's cut: the header ceremony, and the enumeration of checks that don't apply. If a reviewer would ask "did you check X," answer it inline when asked, don't pre-empt every possible question in the description.
+
 ## Provenance
 
 This skill started as a fork-in-spirit of [blader/humanizer](https://github.com/blader/humanizer) (MIT license), which is itself built on Wikipedia's "Signs of AI writing" guide (WikiProject AI Cleanup). Credit to Blader for the original taxonomy and the draft -> audit -> rewrite process this skill still follows. This is a from-scratch rewrite rather than a literal fork, kept independent on purpose: Andrew wants a list that reflects his own read of what sounds AI-generated, updated on his own schedule, rather than tracking someone else's repo.
 
-Pattern groups E through K were added after close reading of specific pieces flagged as bad examples in conversation with Claude: a viral essay dense with rhetorical-hinge writing. Pattern groups R through T were added after reading a skilled human writer's advice newsletter whose polish leans hard on techniques that double as classic model tells: dense aphorism, mood-named section headers, one metaphor stretched across the whole piece. Pattern group U was added from a GitHub issue flagging a specific sentence that named its own importance rather than earning it. Sources kept off the record intentionally; the patterns are what matter, not the byline.
+Pattern groups E through K were added after close reading of specific pieces flagged as bad examples in conversation with Claude: a viral essay dense with rhetorical-hinge writing. Pattern groups R through T were added after reading a skilled human writer's advice newsletter whose polish leans hard on techniques that double as classic model tells: dense aphorism, mood-named section headers, one metaphor stretched across the whole piece. Pattern group U was added from a GitHub issue flagging a specific sentence that named its own importance rather than earning it. Pattern group V and the GitHub PR descriptions and review comments section were added after a colleague flagged Andrew's PR descriptions and review comments as reading AI-generated; close comparison against real team PRs on the same repo showed the tell wasn't prose-level at all, it was unearned section headers, defensive "here's what I didn't test and why" writeups nobody asked for, and, separately, a habit of answering multi-part questions by mirroring their enumeration point-by-point. Sources kept off the record intentionally; the patterns are what matter, not the byline.
 
 This file does not track upstream version changes. Andrew's own judgment on what reads as AI-generated is the source of truth here, not the Wikipedia list or any third-party repo; extend or edit pattern groups directly as new tells get spotted.
 

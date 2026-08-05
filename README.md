@@ -1,6 +1,6 @@
 # Personify
 
-An agent skill that strips the statistical fingerprints of LLM writing out of prose before it goes out the door: emails, PR descriptions, docs, blog drafts, essays. It runs as a plain Markdown skill (`SKILL.md`), so any harness that supports skill-style instructions can use it.
+An agent skill that strips the statistical fingerprints of LLM writing out of prose before it goes out the door: emails, PR descriptions and review comments, docs, blog drafts, essays. It runs as a plain Markdown skill (`SKILL.md`), so any harness that supports skill-style instructions can use it.
 
 Personify tracks its own pattern list on its own schedule. It started as a structural cousin of [blader/humanizer](https://github.com/blader/humanizer) (same idea, same MIT license, credited in [LICENSE](LICENSE)), but the taxonomy, wording, and version history here are independent and not synced against that project.
 
@@ -57,7 +57,7 @@ Personify the writing in docs/launch-post.md
 
 ## What it does
 
-`SKILL.md` covers the standard taxonomy of AI-writing tells (inflated significance, empty vocabulary clusters, copula avoidance, filler and hedging, chatbot residue, and more), plus patterns added after reviewing specific pieces of writing that leaned on AI-adjacent techniques without being AI-written. It also documents what *not* to flag, so a clean human writer who hits one of these patterns once isn't treated as a false positive. See the file itself for the full pattern list and provenance notes.
+`SKILL.md` covers the standard taxonomy of AI-writing tells (inflated significance, empty vocabulary clusters, copula avoidance, filler and hedging, chatbot residue, and more), plus patterns added after reviewing specific pieces of writing that leaned on AI-adjacent techniques without being AI-written. It also has a dedicated section for GitHub PR descriptions and review comments, where the tell is usually structural (unearned headers, defensive completeness) rather than prose-level. It documents what *not* to flag too, so a clean human writer who hits one of these patterns once isn't treated as a false positive. See the file itself for the full pattern list and provenance notes.
 
 ## License
 
