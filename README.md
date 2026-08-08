@@ -63,11 +63,18 @@ Personify the writing in docs/launch-post.md
 
 Personify on its own makes prose non-robotic but not distinctive: clean, competent, and anonymous. The other half is an optional voice guide.
 
-At load time (`SKILL.md` Step 0), Personify looks for `VOICE.md` in its own directory. If present, it reads that file and treats it as authoritative: where the general pattern list and the voice guide disagree, the voice guide wins. If absent, Personify runs in generic mode and says so.
+At load time (`SKILL.md` Step 0), Personify looks for a `VOICE.md`, checking in order: the `PERSONIFY_VOICE` environment variable, then `~/.config/personify/VOICE.md` (honoring `XDG_CONFIG_HOME`), then the skill's own directory for repo-local development. The first one found wins, is read in full, and is treated as authoritative: where the general pattern list and the voice guide disagree, the voice guide wins. If none is found, Personify runs in generic mode and says so.
 
 `VOICE.md` describes how one specific person actually writes, compiled from a corpus of their own writing (blog posts, essays, long-form email, docs). It is personal and git-ignored, exactly like `.env`. The committed [`VOICE.example.md`](VOICE.example.md) documents the structure and how to build one, without containing anyone's actual voice.
 
-Because the runtime artifact is `SKILL.md`, remember to copy `VOICE.md` alongside it wherever the skill is installed. A voice guide that stays in the repo won't be found by an installed copy of the skill.
+Install the skill however you like, then put your voice guide at the stable path so upgrades never touch it:
+
+```bash
+mkdir -p ~/.config/personify
+cp VOICE.example.md ~/.config/personify/VOICE.md   # then edit, or have an agent build it
+```
+
+Don't keep your real `VOICE.md` inside the installed plugin directory: plugins install into a version-pinned path that is replaced on every upgrade, so a guide kept there is lost the next time the plugin updates.
 
 ## License
 
