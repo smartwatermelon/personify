@@ -59,6 +59,16 @@ Personify the writing in docs/launch-post.md
 
 `SKILL.md` covers the standard taxonomy of AI-writing tells (inflated significance, empty vocabulary clusters, copula avoidance, filler and hedging, chatbot residue, and more), plus patterns added after reviewing specific pieces of writing that leaned on AI-adjacent techniques without being AI-written. It also has a dedicated section for GitHub PR descriptions and review comments, where the tell is usually structural (unearned headers, defensive completeness) rather than prose-level. It documents what *not* to flag too, so a clean human writer who hits one of these patterns once isn't treated as a false positive. See the file itself for the full pattern list and provenance notes.
 
+## Voice guide
+
+Personify on its own makes prose non-robotic but not distinctive: clean, competent, and anonymous. The other half is an optional voice guide.
+
+At load time (`SKILL.md` Step 0), Personify looks for `voice.md` in its own directory. If present, it reads that file and treats it as authoritative: where the general pattern list and the voice guide disagree, the voice guide wins. If absent, Personify runs in generic mode and says so.
+
+`voice.md` describes how one specific person actually writes, compiled from a corpus of their own writing (blog posts, essays, long-form email, docs). It is personal and git-ignored, exactly like `.env`. The committed [`voice.example.md`](voice.example.md) documents the structure and how to build one, without containing anyone's actual voice.
+
+Because the runtime artifact is `SKILL.md`, remember to copy `voice.md` alongside it wherever the skill is installed. A voice guide that stays in the repo won't be found by an installed copy of the skill.
+
 ## License
 
 MIT. See [LICENSE](LICENSE) for the full text and provenance note.
