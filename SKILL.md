@@ -1,6 +1,6 @@
 ---
 name: personify
-version: 0.2.0
+version: 0.2.1
 description: Strip AI-writing tells from prose before sending, publishing, or shipping it. Use when editing text (emails, docs, comments, PRs, blog drafts, essays) someone else will read. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
@@ -11,12 +11,17 @@ Edit text to remove the statistical fingerprints of LLM writing, without flatten
 
 ## Step 0: Load the voice guide first
 
-Before applying anything below, look for `VOICE.md` in this skill's directory.
+Before applying anything below, locate the active voice guide by checking these locations in order and using the first that exists:
 
-- If `VOICE.md` exists, read it fully and treat it as authoritative. It describes one specific person's writing. Where it conflicts with any rule in this skill, the voice guide wins. The pattern groups below become a backstop for residue the voice guide doesn't address, not a filter that overrides it.
-- If `VOICE.md` does not exist, read `VOICE.example.md` for what one looks like and how to build it. Without a voice guide this skill makes text non-robotic but not distinctive: clean, competent, anonymous. Proceed with the general rules and say so, so the user knows a voice guide is what turns "not obviously AI" into "sounds like them."
+1. The path in the `PERSONIFY_VOICE` environment variable, if set.
+2. `VOICE.md` under the user's config directory: `$XDG_CONFIG_HOME/personify/VOICE.md`, or `~/.config/personify/VOICE.md` when `XDG_CONFIG_HOME` is unset.
+3. `VOICE.md` in this skill's own directory (repo-local development only).
 
-`VOICE.md` is personal and git-ignored, like `.env`. The committed `VOICE.example.md` documents the shape without containing anyone's voice. It must sit in the same directory as `SKILL.md` wherever the skill is installed, not just in the repo.
+If a voice guide is found, read it fully and treat it as authoritative. It describes one specific person's writing. Where it conflicts with any rule in this skill, the voice guide wins; the pattern groups below are only a backstop for residue it doesn't address.
+
+If no voice guide is found, read `VOICE.example.md` (in this skill's directory) for what one looks like and how to build it. Without a voice guide this skill makes text non-robotic but not distinctive: clean, competent, anonymous. Proceed with the general rules and say so, so the user knows a voice guide is what turns "not obviously AI" into "sounds like them."
+
+The voice guide is personal and never committed (git-ignored, like `.env`). It lives at a stable path outside the plugin install on purpose: the plugin installs into a version-pinned directory that is replaced on every upgrade, so a guide kept inside the install would be lost on each update. The committed `VOICE.example.md` documents the shape without containing anyone's voice.
 
 ## Process
 
