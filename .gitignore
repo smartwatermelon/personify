@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# Personal voice guide (like .env, never committed); see VOICE.example.md
+VOICE.md
