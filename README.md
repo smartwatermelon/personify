@@ -63,11 +63,11 @@ Personify the writing in docs/launch-post.md
 
 Personify on its own makes prose non-robotic but not distinctive: clean, competent, and anonymous. The other half is an optional voice guide.
 
-At load time (`SKILL.md` Step 0), Personify looks for `voice.md` in its own directory. If present, it reads that file and treats it as authoritative: where the general pattern list and the voice guide disagree, the voice guide wins. If absent, Personify runs in generic mode and says so.
+At load time (`SKILL.md` Step 0), Personify looks for `VOICE.md` in its own directory. If present, it reads that file and treats it as authoritative: where the general pattern list and the voice guide disagree, the voice guide wins. If absent, Personify runs in generic mode and says so.
 
-`voice.md` describes how one specific person actually writes, compiled from a corpus of their own writing (blog posts, essays, long-form email, docs). It is personal and git-ignored, exactly like `.env`. The committed [`voice.example.md`](voice.example.md) documents the structure and how to build one, without containing anyone's actual voice.
+`VOICE.md` describes how one specific person actually writes, compiled from a corpus of their own writing (blog posts, essays, long-form email, docs). It is personal and git-ignored, exactly like `.env`. The committed [`VOICE.example.md`](VOICE.example.md) documents the structure and how to build one, without containing anyone's actual voice.
 
-Because the runtime artifact is `SKILL.md`, remember to copy `voice.md` alongside it wherever the skill is installed. A voice guide that stays in the repo won't be found by an installed copy of the skill.
+Because the runtime artifact is `SKILL.md`, remember to copy `VOICE.md` alongside it wherever the skill is installed. A voice guide that stays in the repo won't be found by an installed copy of the skill.
 
 ## License
 

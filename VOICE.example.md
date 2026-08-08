@@ -1,16 +1,16 @@
 # Voice Guide (example / template)
 
-This is the committed example. The real file lives next to it as `voice.md` and is git-ignored, exactly like `.env` versus `.env.example`. Copy this to `voice.md` and fill it in with one specific person's voice, or point an agent at a corpus and have it build `voice.md` from the instructions below.
+This is the committed example. The real file lives next to it as `VOICE.md` and is git-ignored, exactly like `.env` versus `.env.example`. Copy this to `VOICE.md` and fill it in with one specific person's voice, or point an agent at a corpus and have it build `VOICE.md` from the instructions below.
 
 ## Why this exists
 
-Personify strips the statistical fingerprints of LLM writing. On its own, that makes prose *not obviously AI* and also *not obviously anyone*: clean, competent, anonymous. A voice guide is the other half. It describes how one real person actually writes, so Personify has something to preserve instead of a blank to sand flat. Without a `voice.md` present, Personify runs in generic mode and should tell you so.
+Personify strips the statistical fingerprints of LLM writing. On its own, that makes prose *not obviously AI* and also *not obviously anyone*: clean, competent, anonymous. A voice guide is the other half. It describes how one real person actually writes, so Personify has something to preserve instead of a blank to sand flat. Without a `VOICE.md` present, Personify runs in generic mode and should tell you so.
 
 ## How Personify uses it
 
-Personify's Step 0 looks for `voice.md` in the skill directory. If it exists, Personify reads it and treats it as authoritative: where the general pattern list and the voice guide disagree, the voice guide wins, and the pattern list becomes a backstop for residue. If `voice.md` is absent, Personify falls back to generic cleanup and points here.
+Personify's Step 0 looks for `VOICE.md` in the skill directory. If it exists, Personify reads it and treats it as authoritative: where the general pattern list and the voice guide disagree, the voice guide wins, and the pattern list becomes a backstop for residue. If `VOICE.md` is absent, Personify falls back to generic cleanup and points here.
 
-## How to build a `voice.md`
+## How to build a `VOICE.md`
 
 Feed an agent a corpus of writing that is unambiguously the person's own, then have it extract distinctive, reproducible features. Guidance:
 
@@ -22,7 +22,7 @@ Feed an agent a corpus of writing that is unambiguously the person's own, then h
 
 ## Suggested structure
 
-Mirror the sections below in `voice.md`:
+Mirror the sections below in `VOICE.md`:
 
 - **The one line** — a single sentence capturing the person's core stance or posture.
 - **Picking the register** — the named registers and how to choose one from context.
