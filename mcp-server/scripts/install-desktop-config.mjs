@@ -24,11 +24,15 @@ async function main() {
 
   try {
     await stat(serverEntryPath);
-  } catch {
-    console.error(
-      `${serverEntryPath} does not exist. Run "npm run build" first, ` +
-        "or use \"npm run install-desktop-config\" which does this for you.",
-    );
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      console.error(
+        `${serverEntryPath} does not exist. Run "npm run build" first, ` +
+          "or use \"npm run install-desktop-config\" which does this for you.",
+      );
+    } else {
+      console.error(`Could not access ${serverEntryPath}: ${err.message}`);
+    }
     process.exitCode = 1;
     return;
   }

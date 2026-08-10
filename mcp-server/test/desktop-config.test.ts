@@ -110,6 +110,17 @@ describe("mergeConfig", () => {
     expect(second).toEqual(first);
   });
 
+  it("preserves the original position of the mcpServers key in the object", () => {
+    const existing = {
+      mcpServers: { instapaper: { command: "node", args: ["/x/index.js"] } },
+      coworkUserFilesPath: "/Users/someone/Claude",
+    };
+
+    const result = mergeConfig(existing, "/abs/path/to/dist/index.js");
+
+    expect(Object.keys(result)).toEqual(["mcpServers", "coworkUserFilesPath"]);
+  });
+
   it("throws a clear error when the existing config's top level is not an object", () => {
     expect(() => mergeConfig([1, 2, 3], "/abs/path/to/dist/index.js")).toThrow(
       "claude_desktop_config.json does not contain a valid JSON object at its top level",
