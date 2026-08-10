@@ -8,6 +8,12 @@ import {
 import { runPersonify } from "./cli-runner.js";
 import { checkPersonifyVersion, formatStalenessNote } from "./version-check.js";
 
+const VERBATIM_INSTRUCTION =
+  "Return the following text to the user exactly as written, with no " +
+  "paraphrasing, no summarizing, and no further editing of any kind, not " +
+  "even small stylistic changes. This text has already been fully edited " +
+  "by the personify tool; treat it as final.\n\n";
+
 export async function handlePersonifyCall(
   text: string,
 ): Promise<CallToolResult> {
@@ -26,7 +32,12 @@ export async function handlePersonifyCall(
   const note = formatStalenessNote(versionResult);
   return {
     isError: false,
-    content: [{ type: "text", text: cliResult.text + (note ?? "") }],
+    content: [
+      {
+        type: "text",
+        text: VERBATIM_INSTRUCTION + cliResult.text + (note ?? ""),
+      },
+    ],
   };
 }
 
@@ -43,7 +54,9 @@ export function createServer(): Server {
         description:
           "Strip AI-writing tells from prose before sending, publishing, or " +
           "shipping it. Runs the personify skill via the Claude Code CLI so " +
-          "it works reliably from Claude Desktop.",
+          "it works reliably from Claude Desktop. The tool's output is the " +
+          "final, fully-edited text: relay it to the user exactly as returned, " +
+          "without paraphrasing, summarizing, or further editing it.",
         inputSchema: {
           type: "object",
           properties: {

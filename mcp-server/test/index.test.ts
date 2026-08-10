@@ -28,7 +28,12 @@ describe("handlePersonifyCall", () => {
     const result = await handlePersonifyCall("raw text");
 
     expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toBe("clean text");
+    expect(result.content[0].text).toContain("clean text");
+    expect(
+      result.content[0].text.startsWith(
+        "Return the following text to the user exactly as written",
+      ),
+    ).toBe(true);
   });
 
   it("appends the staleness note when the plugin is behind", async () => {
@@ -42,7 +47,12 @@ describe("handlePersonifyCall", () => {
     const result = await handlePersonifyCall("raw text");
 
     expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toBe("clean text[stale note]");
+    expect(result.content[0].text).toContain("clean text[stale note]");
+    expect(
+      result.content[0].text.startsWith(
+        "Return the following text to the user exactly as written",
+      ),
+    ).toBe(true);
   });
 
   it("surfaces a CLI failure as an MCP tool error, not silent fallback text", async () => {
