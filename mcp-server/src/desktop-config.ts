@@ -26,14 +26,15 @@ export function mergeConfig(
   const base: Record<string, unknown> = existing ? { ...existing } : {};
   const existingServers = isPlainObject(base.mcpServers) ? base.mcpServers : {};
 
-  return {
-    ...base,
-    mcpServers: {
-      ...existingServers,
-      personify: {
-        command: "node",
-        args: [serverEntryPath],
-      },
+  // Overwrite mcpServers in place (rather than spreading it in after ...base)
+  // so its position in the key order matches the original file: only the
+  // personify sub-key should look different in a diff, not the whole file.
+  base.mcpServers = {
+    ...existingServers,
+    personify: {
+      command: "node",
+      args: [serverEntryPath],
     },
   };
+  return base;
 }
