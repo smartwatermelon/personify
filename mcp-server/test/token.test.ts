@@ -16,7 +16,11 @@ describe("loadOAuthToken", () => {
   });
 
   it("returns the trimmed token when the file exists with mode 600", async () => {
-    statMock.mockResolvedValue({ mode: 0o100600 });
+    statMock.mockImplementation((path: string) =>
+      path === "/fake/token"
+        ? Promise.resolve({ mode: 0o100600 })
+        : Promise.resolve({ mode: 0o040755 }),
+    );
     readFileMock.mockResolvedValue("sk-ant-oat01-abc123\n");
 
     const result = await loadOAuthToken({ tokenPath: "/fake/token" });
@@ -25,7 +29,11 @@ describe("loadOAuthToken", () => {
   });
 
   it("returns the trimmed token when the file exists with mode 400", async () => {
-    statMock.mockResolvedValue({ mode: 0o100400 });
+    statMock.mockImplementation((path: string) =>
+      path === "/fake/token"
+        ? Promise.resolve({ mode: 0o100400 })
+        : Promise.resolve({ mode: 0o040755 }),
+    );
     readFileMock.mockResolvedValue("sk-ant-oat01-abc123\n");
 
     const result = await loadOAuthToken({ tokenPath: "/fake/token" });
@@ -34,7 +42,11 @@ describe("loadOAuthToken", () => {
   });
 
   it("rejects a token file with overly permissive mode (e.g. 644)", async () => {
-    statMock.mockResolvedValue({ mode: 0o100644 });
+    statMock.mockImplementation((path: string) =>
+      path === "/fake/token"
+        ? Promise.resolve({ mode: 0o100644 })
+        : Promise.resolve({ mode: 0o040755 }),
+    );
     readFileMock.mockResolvedValue("sk-ant-oat01-abc123\n");
 
     const result = await loadOAuthToken({ tokenPath: "/fake/token" });
@@ -62,7 +74,11 @@ describe("loadOAuthToken", () => {
   });
 
   it("returns an error when the token file is empty or whitespace-only", async () => {
-    statMock.mockResolvedValue({ mode: 0o100600 });
+    statMock.mockImplementation((path: string) =>
+      path === "/fake/token"
+        ? Promise.resolve({ mode: 0o100600 })
+        : Promise.resolve({ mode: 0o040755 }),
+    );
     readFileMock.mockResolvedValue("   \n");
 
     const result = await loadOAuthToken({ tokenPath: "/fake/token" });
@@ -74,7 +90,11 @@ describe("loadOAuthToken", () => {
   });
 
   it("returns an error instead of throwing when readFile rejects (e.g. EACCES)", async () => {
-    statMock.mockResolvedValue({ mode: 0o100600 });
+    statMock.mockImplementation((path: string) =>
+      path === "/fake/token"
+        ? Promise.resolve({ mode: 0o100600 })
+        : Promise.resolve({ mode: 0o040755 }),
+    );
     readFileMock.mockRejectedValue(
       Object.assign(new Error("EACCES"), { code: "EACCES" }),
     );
