@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { CliResult } from "./types.js";
+import { loadOAuthToken } from "./token.js";
 
 export const PERSONIFY_INSTRUCTION =
   "Run the personify:personify skill on the text provided via stdin and " +
@@ -8,12 +9,17 @@ export const PERSONIFY_INSTRUCTION =
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
-export function runPersonify(
+export async function runPersonify(
   text: string,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; tokenPath?: string } = {},
 ): Promise<CliResult> {
   if (text.trim().length === 0) {
-    return Promise.resolve({ ok: false, error: "no text provided" });
+    return { ok: false, error: "no text provided" };
+  }
+
+  const tokenResult = await loadOAuthToken({ tokenPath: opts.tokenPath });
+  if (!tokenResult.ok) {
+    return { ok: false, error: tokenResult.error };
   }
 
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -22,7 +28,11 @@ export function runPersonify(
     const child = spawn(
       "claude",
       ["--print", "--permission-mode", "auto", PERSONIFY_INSTRUCTION],
-      { shell: false, stdio: ["pipe", "pipe", "pipe"] },
+      {
+        shell: false,
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: tokenResult.token },
+      },
     );
 
     let stdout = "";

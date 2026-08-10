@@ -14,11 +14,63 @@ confirmed active. Claude Code CLI does not have this problem.
 
 ## Build
 
+From the repo root:
+
 ```bash
 cd mcp-server
 npm install
 npm run build
 ```
+
+## Authenticate
+
+Claude Desktop cannot use your regular `claude` login for this bridge.
+`claude` normally reads your OAuth session from the macOS Keychain, and
+Keychain access for that credential is restricted to process trees macOS
+already trusts, like a Terminal-launched shell. Desktop launches this
+server as a child of its own process, a different, untrusted process
+tree, so the Keychain read is silently denied and `claude` reports it as
+an expired OAuth session, even though your regular terminal `claude`
+session is fine.
+
+The fix is a separate, long-lived OAuth token scoped to this bridge only,
+generated with:
+
+```bash
+claude setup-token
+```
+
+This opens a browser authorization flow (the same one `/login` uses) and,
+once you approve it, prints a token to your terminal. This token
+authenticates against your Claude subscription (Pro, Max, Team, or
+Enterprise) exactly like your normal `claude` session does: it is not an
+API key, and using it does not switch you to metered API billing.
+
+Copy the printed token into `~/.config/personify/token` (see
+`token.example` in this directory for the expected format), then lock
+down its permissions so only you can read it:
+
+```bash
+mkdir -p ~/.config/personify
+# paste the token from "claude setup-token" into ~/.config/personify/token
+chmod 600 ~/.config/personify/token
+```
+
+The server refuses to start a `claude` call if this file is missing, empty,
+or has permissions looser than 600 (owner read/write) or 400 (owner
+read-only).
+
+If `XDG_CONFIG_HOME` is set in your environment, the token is read from
+`$XDG_CONFIG_HOME/personify/token` instead, matching where `VOICE.md`
+lives for the Personify skill itself.
+
+To see or revoke a token you generated this way, visit
+[claude.ai/settings](https://claude.ai/settings) and look under the
+Claude Code section. Revocation there has been reported as unreliable in
+some cases for already-minted `setup-token` credentials; if a token stops
+working (or you want to be certain it is gone), delete
+`~/.config/personify/token` and run `claude setup-token` again for a
+fresh one.
 
 ## Configure in Claude Desktop
 
@@ -44,7 +96,8 @@ Restart Desktop after editing.
   single-digit to tens of seconds.
 - Requires the `claude` CLI to be installed and on `PATH` for whatever user
   account runs Desktop, with the `personify` plugin installed
-  (`/plugin marketplace add smartwatermelon/personify && /plugin install personify@personify`).
+  (`/plugin marketplace add smartwatermelon/personify && /plugin install personify@personify`),
+  and requires the OAuth token file described above under "Authenticate."
 
 ## Manual verification checklist
 

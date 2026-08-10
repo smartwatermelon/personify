@@ -7,6 +7,11 @@ vi.mock("node:child_process", () => ({
   spawn: (...args: unknown[]) => spawnMock(...args),
 }));
 
+const loadOAuthTokenMock = vi.fn();
+vi.mock("../src/token.js", () => ({
+  loadOAuthToken: (...args: unknown[]) => loadOAuthTokenMock(...args),
+}));
+
 const { runPersonify } = await import("../src/cli-runner.js");
 
 function makeFakeChild() {
@@ -35,6 +40,11 @@ function makeFakeChild() {
 describe("runPersonify", () => {
   beforeEach(() => {
     spawnMock.mockReset();
+    loadOAuthTokenMock.mockReset();
+    loadOAuthTokenMock.mockResolvedValue({
+      ok: true,
+      token: "sk-ant-oat01-test",
+    });
   });
 
   it("spawns claude with a fixed argv, shell disabled, and writes text to stdin (no interpolation)", async () => {
@@ -42,8 +52,7 @@ describe("runPersonify", () => {
     spawnMock.mockReturnValue(child);
 
     const resultPromise = runPersonify("some — text with an em dash");
-
-    expect(spawnMock).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1));
     const [cmd, args, spawnOpts] = spawnMock.mock.calls[0];
     expect(cmd).toBe("claude");
     expect(args).toEqual([
@@ -56,7 +65,12 @@ describe("runPersonify", () => {
     for (const arg of args as string[]) {
       expect(arg).not.toContain("some — text with an em dash");
     }
-    expect(spawnOpts).toMatchObject({ shell: false });
+    expect(spawnOpts).toMatchObject({
+      shell: false,
+      env: expect.objectContaining({
+        CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-test",
+      }),
+    });
     expect(child.stdin.write).toHaveBeenCalledWith(
       "some — text with an em dash",
     );
@@ -74,6 +88,7 @@ describe("runPersonify", () => {
     spawnMock.mockReturnValue(child);
 
     const resultPromise = runPersonify("text");
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1));
     child.stderr.emit("data", Buffer.from("skill not found"));
     child.emit("close", 1);
 
@@ -107,6 +122,7 @@ describe("runPersonify", () => {
     spawnMock.mockReturnValue(child);
 
     const resultPromise = runPersonify("some text");
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1));
 
     // Simulate the child exiting before stdin drains: an EPIPE error event
     // fires on child.stdin. This must not become an uncaught exception.
@@ -123,6 +139,21 @@ describe("runPersonify", () => {
   it("rejects empty input before spawning a subprocess", async () => {
     const result = await runPersonify("   ");
     expect(result).toEqual({ ok: false, error: "no text provided" });
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a tool error without spawning when the token cannot be loaded", async () => {
+    loadOAuthTokenMock.mockResolvedValue({
+      ok: false,
+      error: 'no OAuth token found at /fake/token. Run "claude setup-token"...',
+    });
+
+    const result = await runPersonify("some text");
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'no OAuth token found at /fake/token. Run "claude setup-token"...',
+    });
     expect(spawnMock).not.toHaveBeenCalled();
   });
 });
