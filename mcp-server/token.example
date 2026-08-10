@@ -6,10 +6,10 @@
 #
 # Copy the token that command prints (starts with "sk-ant-oat01-") into
 # this file, on its own line, with no surrounding quotes or extra text.
-# Then move this file to its real location and lock down its permissions:
+# Then copy this file to its real location and lock down its permissions:
 #
 #     mkdir -p ~/.config/personify
-#     mv mcp-server/token.example ~/.config/personify/token
+#     cp mcp-server/token.example ~/.config/personify/token
 #     # edit ~/.config/personify/token: replace this comment block with
 #     # just the token you copied
 #     chmod 600 ~/.config/personify/token

@@ -72,4 +72,52 @@ describe("loadOAuthToken", () => {
       expect(result.error).toContain("empty");
     }
   });
+
+  it("returns an error instead of throwing when readFile rejects (e.g. EACCES)", async () => {
+    statMock.mockResolvedValue({ mode: 0o100600 });
+    readFileMock.mockRejectedValue(
+      Object.assign(new Error("EACCES"), { code: "EACCES" }),
+    );
+
+    const result = await loadOAuthToken({ tokenPath: "/fake/token" });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("/fake/token");
+      expect(result.error).toContain("EACCES");
+    }
+  });
+
+  it("accepts a token directory with mode 700 or 755", async () => {
+    statMock.mockImplementation((path: string) => {
+      if (path === "/fake") {
+        return Promise.resolve({ mode: 0o040755 });
+      }
+      return Promise.resolve({ mode: 0o100600 });
+    });
+    readFileMock.mockResolvedValue("sk-ant-oat01-abc123\n");
+
+    const result = await loadOAuthToken({ tokenPath: "/fake/token" });
+
+    expect(result).toEqual({ ok: true, token: "sk-ant-oat01-abc123" });
+  });
+
+  it("rejects a token directory that is group- or world-writable (e.g. 777)", async () => {
+    statMock.mockImplementation((path: string) => {
+      if (path === "/fake") {
+        return Promise.resolve({ mode: 0o040777 });
+      }
+      return Promise.resolve({ mode: 0o100600 });
+    });
+    readFileMock.mockResolvedValue("sk-ant-oat01-abc123\n");
+
+    const result = await loadOAuthToken({ tokenPath: "/fake/token" });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("/fake");
+      expect(result.error).toContain("writable");
+    }
+    expect(readFileMock).not.toHaveBeenCalled();
+  });
 });

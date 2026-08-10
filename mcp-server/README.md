@@ -60,9 +60,13 @@ The server refuses to start a `claude` call if this file is missing, empty,
 or has permissions looser than 600 (owner read/write) or 400 (owner
 read-only).
 
-If `XDG_CONFIG_HOME` is set in your environment, the token is read from
-`$XDG_CONFIG_HOME/personify/token` instead, matching where `VOICE.md`
-lives for the Personify skill itself.
+If `XDG_CONFIG_HOME` is set in the environment Claude Desktop itself
+launches with, not just your shell, the token is read from
+`$XDG_CONFIG_HOME/personify/token` instead. Note that GUI-launched apps on
+macOS do not inherit your shell's exports; if you rely on a custom
+`XDG_CONFIG_HOME`, set it explicitly via the `env` block in
+`claude_desktop_config.json` rather than assuming Desktop sees your
+shell's value.
 
 To see or revoke a token you generated this way, visit
 [claude.ai/settings](https://claude.ai/settings) and look under the
