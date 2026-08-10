@@ -1,0 +1,30 @@
+# Personify MCP bridge: OAuth token for Desktop's subprocess calls
+#
+# This file holds a long-lived Claude Code OAuth token, generated with:
+#
+#     claude setup-token
+#
+# Copy the token that command prints (starts with "sk-ant-oat01-") into
+# this file, on its own line, with no surrounding quotes or extra text.
+# Then copy this file to its real location and lock down its permissions:
+#
+#     mkdir -p ~/.config/personify
+#     cp mcp-server/token.example ~/.config/personify/token
+#     # edit ~/.config/personify/token: replace this comment block with
+#     # just the token you copied
+#     chmod 600 ~/.config/personify/token
+#
+# The MCP server refuses to read this file if its permissions are looser
+# than 600 (owner read/write only) or 400 (owner read only).
+#
+# This token authenticates against your Claude subscription (Pro, Max,
+# Team, or Enterprise), the same as running "claude" from a terminal. It
+# does not use metered API billing.
+#
+# To see or revoke tokens you have generated this way, visit
+# https://claude.ai/settings and look under the Claude Code section. Note:
+# as of this writing, revocation there has been unreliable in some
+# reported cases for already-minted setup-token credentials; if in doubt,
+# also remove this file and re-run "claude setup-token" to mint a fresh one.
+
+sk-ant-oat01-REPLACE-WITH-YOUR-ACTUAL-TOKEN

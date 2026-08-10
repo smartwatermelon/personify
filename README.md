@@ -43,6 +43,14 @@ Claude Desktop reads skills from its own skills directory. Copy `SKILL.md` into 
 
 The entire runtime artifact is `SKILL.md`. Any agent harness that loads Markdown-based skills can use it by copying that one file into wherever the harness expects skill definitions.
 
+### Claude Desktop via MCP bridge (recommended over the raw-skill route above)
+
+Claude Desktop has, in practice, been unreliable about trusting its own
+filesystem connector state and about Step 0's "load `VOICE.md` and treat it
+as authoritative" instruction. See `mcp-server/README.md` for an MCP server
+that routes Desktop's personify calls through the Claude Code CLI instead,
+avoiding that failure mode entirely.
+
 ## Usage
 
 Ask for it directly, or point it at a file:
