@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "install-desktop-config": "npm run build && node scripts/install-desktop-config.mjs",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest"

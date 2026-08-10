@@ -78,8 +78,27 @@ fresh one.
 
 ## Configure in Claude Desktop
 
-Add to Desktop's MCP config (Settings -> Developer -> Edit Config, or the
-equivalent `claude_desktop_config.json`):
+From `mcp-server/`, after building:
+
+```bash
+npm run install-desktop-config
+```
+
+This merges a `personify` entry into
+`~/Library/Application Support/Claude/claude_desktop_config.json` (creating
+the file if it does not exist yet), using the absolute path to this repo's
+`dist/index.js`. It only ever touches the `personify` key under
+`mcpServers`; any other MCP servers or settings already in that file are
+left exactly as they are. Running it again (for example after moving the
+repo, or to pick up a rebuilt `dist/`) safely updates the entry in place
+rather than duplicating it.
+
+Restart Desktop after running it.
+
+macOS only for now. On other platforms, add the following to
+`claude_desktop_config.json` by hand instead (path varies by OS; see
+[Anthropic's MCP docs](https://modelcontextprotocol.io) for where Desktop
+looks for it there):
 
 ```json
 {
@@ -91,8 +110,6 @@ equivalent `claude_desktop_config.json`):
   }
 }
 ```
-
-Restart Desktop after editing.
 
 ## Known costs (accepted, not engineered around in v1)
 
