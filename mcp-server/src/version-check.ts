@@ -18,32 +18,43 @@ const DEFAULT_INSTALLED_PLUGINS_PATH = join(
 // ~/.claude/plugins/marketplaces/<marketplace>/.claude-plugin/plugin.json,
 // which Claude Code refreshes when the marketplace is updated (autoUpdate,
 // per ~/.claude/plugins/known_marketplaces.json).
-const DEFAULT_CATALOG_CACHE_PATH = join(
+//
+// Caveat: this is a locally-cloned manifest, not a live upstream check.
+// autoUpdate refreshes the clone on some internal schedule/trigger, not
+// continuously or synchronously with every version check, so the "latest"
+// reported here can lag a just-published release until the clone next
+// refreshes (observed on this machine: clone last modified before the most
+// recent installed_plugins.json lastUpdated timestamp).
+const DEFAULT_MARKETPLACE_MANIFEST_PATH = join(
   homedir(),
   ".claude/plugins/marketplaces/personify/.claude-plugin/plugin.json",
 );
 
 export async function checkPersonifyVersion(
-  opts: { installedPluginsPath?: string; catalogCachePath?: string } = {},
+  opts: {
+    installedPluginsPath?: string;
+    marketplaceManifestPath?: string;
+  } = {},
 ): Promise<VersionCheckResult> {
   const installedPath =
     opts.installedPluginsPath ?? DEFAULT_INSTALLED_PLUGINS_PATH;
-  const catalogPath = opts.catalogCachePath ?? DEFAULT_CATALOG_CACHE_PATH;
+  const manifestPath =
+    opts.marketplaceManifestPath ?? DEFAULT_MARKETPLACE_MANIFEST_PATH;
 
   try {
-    const [installedRaw, catalogRaw] = await Promise.all([
+    const [installedRaw, manifestRaw] = await Promise.all([
       readFile(installedPath, "utf8"),
-      readFile(catalogPath, "utf8"),
+      readFile(manifestPath, "utf8"),
     ]);
     const installed = JSON.parse(installedRaw);
-    const catalog = JSON.parse(catalogRaw);
+    const manifest = JSON.parse(manifestRaw);
 
     const installedEntry = installed?.plugins?.["personify@personify"]?.[0];
     const installedVersion: string | undefined = installedEntry?.version;
 
-    // catalog here is the marketplace's own plugin.json manifest, whose
+    // manifest here is the marketplace's own plugin.json manifest, whose
     // top-level `version` field is the latest published version.
-    const latestVersion: string | undefined = catalog?.version;
+    const latestVersion: string | undefined = manifest?.version;
 
     if (!installedVersion || !latestVersion) {
       return { stale: false };

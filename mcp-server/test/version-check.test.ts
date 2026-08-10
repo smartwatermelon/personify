@@ -61,7 +61,7 @@ describe("checkPersonifyVersion", () => {
 
     const result = await checkPersonifyVersion({
       installedPluginsPath: "/fake/installed_plugins.json",
-      catalogCachePath:
+      marketplaceManifestPath:
         "/fake/marketplaces/personify/.claude-plugin/plugin.json",
     });
 
@@ -75,7 +75,7 @@ describe("checkPersonifyVersion", () => {
 
     const result = await checkPersonifyVersion({
       installedPluginsPath: "/fake/installed_plugins.json",
-      catalogCachePath:
+      marketplaceManifestPath:
         "/fake/marketplaces/personify/.claude-plugin/plugin.json",
     });
 
@@ -91,7 +91,7 @@ describe("checkPersonifyVersion", () => {
 
     const result = await checkPersonifyVersion({
       installedPluginsPath: "/fake/installed_plugins.json",
-      catalogCachePath:
+      marketplaceManifestPath:
         "/fake/marketplaces/personify/.claude-plugin/plugin.json",
     });
 
