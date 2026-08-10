@@ -11,12 +11,21 @@ const { runPersonify } = await import("../src/cli-runner.js");
 
 function makeFakeChild() {
   const child = new EventEmitter() as ChildProcess & {
-    stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+    stdin: EventEmitter & {
+      write: ReturnType<typeof vi.fn>;
+      end: ReturnType<typeof vi.fn>;
+    };
     stdout: EventEmitter;
     stderr: EventEmitter;
     kill: ReturnType<typeof vi.fn>;
   };
-  child.stdin = { write: vi.fn(), end: vi.fn() };
+  const stdin = new EventEmitter() as EventEmitter & {
+    write: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+  };
+  stdin.write = vi.fn();
+  stdin.end = vi.fn();
+  child.stdin = stdin;
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
   child.kill = vi.fn();
@@ -91,6 +100,24 @@ describe("runPersonify", () => {
     }
     expect(child.kill).toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it("swallows an EPIPE error on stdin instead of throwing or hanging", async () => {
+    const child = makeFakeChild();
+    spawnMock.mockReturnValue(child);
+
+    const resultPromise = runPersonify("some text");
+
+    // Simulate the child exiting before stdin drains: an EPIPE error event
+    // fires on child.stdin. This must not become an uncaught exception.
+    child.stdin.emit(
+      "error",
+      Object.assign(new Error("EPIPE"), { code: "EPIPE" }),
+    );
+    child.emit("close", 1);
+
+    const result = await resultPromise;
+    expect(result.ok).toBe(false);
   });
 
   it("rejects empty input before spawning a subprocess", async () => {

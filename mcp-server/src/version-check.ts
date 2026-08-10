@@ -12,7 +12,7 @@ const DEFAULT_INSTALLED_PLUGINS_PATH = join(
 // curated claude-plugins-official marketplace. Confirmed by direct inspection
 // of ~/.claude/plugins/plugin-catalog-cache.json on 2026-08-10: that cache's
 // `catalog.plugins` map (255 entries) contains no "personify" key or mention
-// anywhere in the file — it only tracks claude-plugins-official's listing.
+// anywhere in the file: it only tracks claude-plugins-official's listing.
 // The authoritative source for a custom marketplace's latest version is the
 // `version` field of the locally-cloned marketplace's own plugin manifest at
 // ~/.claude/plugins/marketplaces/<marketplace>/.claude-plugin/plugin.json,

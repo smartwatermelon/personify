@@ -52,7 +52,7 @@ Run this after any change to `mcp-server/src/`, since the automated test
 suite mocks the `claude` subprocess and cannot catch real invocation drift:
 
 1. Build (`npm run build`), configure Desktop per above, fully quit and
-   restart Desktop (not just start a new chat — the MCP server process is
+   restart Desktop (not just start a new chat: the MCP server process is
    started per Desktop launch).
 2. In a **fresh** Desktop chat (no prior priming about personify), ask
    Desktop to personify a short paragraph containing at least one em dash

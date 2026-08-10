@@ -33,6 +33,8 @@ export function runPersonify(
       if (settled) return;
       settled = true;
       child.kill("SIGTERM");
+      const killTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
+      killTimer.unref();
       resolve({
         ok: false,
         error: `personify CLI call timed out after ${timeoutMs}ms`,
@@ -70,6 +72,10 @@ export function runPersonify(
       }
     });
 
+    child.stdin?.on("error", () => {
+      // Swallow EPIPE: the child exited before draining stdin. The real
+      // outcome is reported by the close/error handlers above.
+    });
     child.stdin?.write(text);
     child.stdin?.end();
   });
