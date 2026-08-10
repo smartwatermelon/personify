@@ -8,7 +8,7 @@ import {
 import { runPersonify } from "./cli-runner.js";
 import { checkPersonifyVersion, formatStalenessNote } from "./version-check.js";
 
-const VERBATIM_INSTRUCTION =
+export const VERBATIM_INSTRUCTION =
   "Return the following text to the user exactly as written, with no " +
   "paraphrasing, no summarizing, and no further editing of any kind, not " +
   "even small stylistic changes. This text has already been fully edited " +

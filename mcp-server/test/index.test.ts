@@ -13,7 +13,8 @@ vi.mock("../src/version-check.js", () => ({
     result.stale ? "[stale note]" : null,
 }));
 
-const { handlePersonifyCall } = await import("../src/index.js");
+const { handlePersonifyCall, VERBATIM_INSTRUCTION } =
+  await import("../src/index.js");
 
 describe("handlePersonifyCall", () => {
   beforeEach(() => {
@@ -29,11 +30,7 @@ describe("handlePersonifyCall", () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.content[0].text).toContain("clean text");
-    expect(
-      result.content[0].text.startsWith(
-        "Return the following text to the user exactly as written",
-      ),
-    ).toBe(true);
+    expect(result.content[0].text.startsWith(VERBATIM_INSTRUCTION)).toBe(true);
   });
 
   it("appends the staleness note when the plugin is behind", async () => {
@@ -48,11 +45,7 @@ describe("handlePersonifyCall", () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.content[0].text).toContain("clean text[stale note]");
-    expect(
-      result.content[0].text.startsWith(
-        "Return the following text to the user exactly as written",
-      ),
-    ).toBe(true);
+    expect(result.content[0].text.startsWith(VERBATIM_INSTRUCTION)).toBe(true);
   });
 
   it("surfaces a CLI failure as an MCP tool error, not silent fallback text", async () => {
