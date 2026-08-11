@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 // This test exercises the real SDK: a real Server, a real Client, and a real
@@ -25,9 +26,27 @@ vi.mock("../src/version-check.js", () => ({
 const { createServer } = await import("../src/index.js");
 
 describe("MCP SDK smoke test (real Server + real Client, in-process transport)", () => {
+  // Server+Client pairs created via connectedClient() are tracked here and
+  // torn down in afterEach. Client.close() cascades to the linked server
+  // transport's close() (see InMemoryTransport#close), which in turn closes
+  // the Server, so closing just the client would suffice — but both are
+  // closed explicitly for clarity and to guard against that cascade
+  // behavior changing upstream.
+  let activePairs: Array<{ client: Client; server: Server }> = [];
+
   beforeEach(() => {
     runPersonifyMock.mockReset();
     checkPersonifyVersionMock.mockReset();
+    activePairs = [];
+  });
+
+  afterEach(async () => {
+    await Promise.all(
+      activePairs.map(({ client, server }) =>
+        Promise.all([client.close(), server.close()]),
+      ),
+    );
+    activePairs = [];
   });
 
   async function connectedClient() {
@@ -39,6 +58,7 @@ describe("MCP SDK smoke test (real Server + real Client, in-process transport)",
       server.connect(serverTransport),
       client.connect(clientTransport),
     ]);
+    activePairs.push({ client, server });
     return client;
   }
 
