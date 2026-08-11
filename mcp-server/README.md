@@ -12,6 +12,26 @@ Desktop has, in practice, denied its own filesystem connector was present
 and flagged Step 0 as injection-shaped, even when the connector was
 confirmed active. Claude Code CLI does not have this problem.
 
+## Prerequisites
+
+- **Node.js >= 18** (check with `node --version`). Install via
+  [nodejs.org](https://nodejs.org) or `brew install node`.
+- **npm** (bundled with Node; check with `npm --version`).
+- **TypeScript compiler (`tsc`)**. `npm install` pulls in TypeScript as a
+  dev dependency, and `npm run build` resolves `tsc` from
+  `node_modules/.bin` automatically, so a project-local install is normally
+  enough. You only need `tsc` available globally (check with
+  `tsc --version`) if you invoke it directly outside of `npm run build`,
+  e.g. `brew install typescript` on macOS or `npm install -g typescript`.
+- The **`claude` CLI** on `PATH` (check with `claude --version`), with the
+  `personify` plugin installed (see "Known costs" below). This is needed
+  both to build the plugin dependency and to generate the OAuth token in
+  "Authenticate."
+
+If `npm install` or `npm run build` fail, run the three `--version` checks
+above first; a missing or too-old Node/npm/tsc produces confusing
+module-resolution or syntax errors rather than a clear "not found" message.
+
 ## Build
 
 From the repo root:
