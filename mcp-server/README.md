@@ -17,12 +17,12 @@ confirmed active. Claude Code CLI does not have this problem.
 - **Node.js >= 18** (check with `node --version`). Install via
   [nodejs.org](https://nodejs.org) or `brew install node`.
 - **npm** (bundled with Node; check with `npm --version`).
-- **TypeScript compiler (`tsc`)** on `PATH` (check with `tsc --version`).
-  `npm install` pulls in TypeScript as a dev dependency and `npm run build`
-  invokes it via `npx`, so a project-local `tsc` is normally enough. If
-  your global `PATH` doesn't reach into `node_modules/.bin` (e.g. some shell
-  or CI setups), you'll need one available globally too:
-  `brew install typescript` on macOS, or `npm install -g typescript`.
+- **TypeScript compiler (`tsc`)**. `npm install` pulls in TypeScript as a
+  dev dependency, and `npm run build` resolves `tsc` from
+  `node_modules/.bin` automatically, so a project-local install is normally
+  enough. You only need `tsc` available globally (check with
+  `tsc --version`) if you invoke it directly outside of `npm run build`,
+  e.g. `brew install typescript` on macOS or `npm install -g typescript`.
 - The **`claude` CLI** on `PATH` (check with `claude --version`), with the
   `personify` plugin installed (see "Known costs" below). This is needed
   both to build the plugin dependency and to generate the OAuth token in
