@@ -30,3 +30,11 @@ taxonomy and the draft-audit-rewrite process this skill still follows. This
 repository is an independent rewrite, not a fork: its pattern list, wording,
 and version history are maintained on their own schedule and do not track
 blader/humanizer's.
+
+Some later pattern material (structural rhythm and parataxis rules, the
+extended high-frequency vocabulary set, and the plain-text formatting rules)
+draws on jalaalrd/anti-ai-slop-writing
+(https://github.com/jalaalrd/anti-ai-slop-writing), also MIT licensed. That
+material was rewritten rather than copied, and recalibrated from its
+hard banned-word framing to this project's cluster-based judgment. As with
+blader/humanizer, this repository does not track that project's releases.
