@@ -103,7 +103,7 @@ Each section or closing line tries to out-stake the last ("a categorically large
 ### O. Style mechanics
 
 - Em/en dashes: cut, no exceptions (see Process, step 6). Replace with a period, comma, or colon. Not parentheses: see the aside rule below.
-- Parenthetical asides: cut the aside, don't relocate it. Parentheses, appositives, and "which"/"that" clauses that add color rather than fact all get deleted. If the content matters it becomes its own short sentence; if it doesn't, it's gone. Facts, numbers, and technical caveats are never cut this way (see Process, step 3).
+- Parenthetical asides: no parentheses, and no relocating an aside into a different set of parentheses elsewhere. Sort by content first. An aside carrying color, hedging, or restatement gets deleted outright. An aside carrying a fact, number, or technical caveat is never deleted (Process, step 3): promote it into the sentence as a plain clause, or make it its own short sentence. The rule bans the parenthetical construction, not the information inside it. Same for appositives and "which"/"that" clauses.
 - Exclamation marks: at most one per long piece, and usually zero. Enthusiasm comes from word choice.
 - Ellipses: only for genuinely trailing off, never as a transition.
 - Semicolons: fine to use. Models underuse them and good human writers reach for them naturally.
@@ -247,7 +247,7 @@ Defaults, which override the general guidance elsewhere in this skill:
 - Fragments are fine. Sentences without subjects are fine. Lowercase sentence starts are fine where the team does that. This applies to messages, not to long documents reached by classification step 3 above, which keep complete sentences while still taking the first person and the compression.
 - Contractions always. "don't," "can't," "it's," "I'd." Never "do not" or "cannot" unless the emphasis is real.
 - First person, always, per group X. "I checked," "I'd rather," "I don't know."
-- No parenthetical asides, per group O. If it matters it's a sentence; otherwise it's gone.
+- No parenthetical asides, per group O. If it carries a fact, promote it into the sentence as a clause; otherwise it's gone.
 - One hedge maximum per message, and only for real uncertainty. Delete "I think it might possibly," "it seems like," "arguably," "to some extent."
 - No transition words doing structural work: "moreover," "furthermore," "additionally," "notably," "that said" as a reflex.
 - Drop framing that sets up a point instead of making it: "in this section we'll cover," "to understand this, it helps to first," "just to give some context."
@@ -309,7 +309,7 @@ After (matches the team's actual register):
 
 Everything true in the original survives. What's cut: the header ceremony, and the enumeration of checks that don't apply. If a reviewer would ask "did you check X," answer it inline when asked, don't pre-empt every possible question in the description.
 
-Note what the rewrite does beyond cutting. The parenthetical aside became a subordinate clause carrying the same fact ("so the new release pipeline can run"), because group O cuts asides rather than parking them in parentheses, and the reason survives as a fact. Two short clauses got connected instead of stacked, per group Y. The first person is optional here and only here: a PR description whose subject is the diff itself can lead with the verb, since the author is unambiguous from the PR metadata. The moment the description carries a judgment ("I'd rather do X," "I'm not sure this covers Y"), group X applies in full and the "I" goes back in.
+Note what the rewrite does beyond cutting. The parenthetical aside became a subordinate clause carrying the same fact ("so the new release pipeline can run"). Group O bans the parenthetical construction, not the information: the reason this grant exists is a fact a reviewer needs, so it gets promoted into the sentence rather than deleted. Had the aside been color rather than fact, it would be gone entirely. Two short clauses got connected instead of stacked, per group Y. The first person is optional here and only here: a PR description whose subject is the diff itself can lead with the verb, since the author is unambiguous from the PR metadata. The moment the description carries a judgment ("I'd rather do X," "I'm not sure this covers Y"), group X applies in full and the "I" goes back in.
 
 ## Provenance
 
