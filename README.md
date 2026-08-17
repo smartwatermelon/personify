@@ -84,6 +84,35 @@ cp VOICE.example.md ~/.config/personify/VOICE.md   # then edit, or have an agent
 
 Don't keep your real `VOICE.md` inside the installed plugin directory: plugins install into a version-pinned path that is replaced on every upgrade, so a guide kept there is lost the next time the plugin updates.
 
+## Works with pr-review and dumbify
+
+Personify is the middle of three sibling skills that compose into one path from
+"review this PR" to a posted comment that reads like a person wrote it:
+
+```text
+pr-review    →    personify    →    dumbify
+(find it)         (de-AI it)        (compress it)
+```
+
+[pr-review](https://github.com/smartwatermelon/pr-review) already calls
+personify directly: its Phase 5 drafts the review, then runs the draft through
+this skill before showing it to you for approval. If personify isn't installed,
+pr-review says so and shows the plain draft rather than failing — the prose pass
+isn't load-bearing for the review's substance.
+
+[dumbify](https://github.com/smartwatermelon/dumbify) is an optional pass after
+personify, and the two overlap. Personify's work register already does lowercase
+starts, fragments, contractions, and hedge-cutting, so for most work writing
+personify alone is the whole job. Dumbify pushes the register further than
+personify will: its default level 2 is roughly where personify's work register
+already lands, and levels 3–4 go past it. Order matters — personify first.
+Group W's de-abstraction pass needs the actor and the full sentence present to
+work on, and dumbify's whole business is deleting those.
+
+Note that a `VOICE.md` outranks both. If your voice guide says you write in
+complete sentences, that wins over dumbify's fragment preference, and stacking
+dumbify on top will fight it.
+
 ## License
 
 MIT. See [LICENSE](LICENSE) for the full text and provenance note.
