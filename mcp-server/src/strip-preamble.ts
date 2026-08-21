@@ -71,12 +71,15 @@ function normalizeNewlines(text: string): string {
 function stripWrappingFence(text: string): string {
   const match = /^(`{3,})[^\n]*\n([\s\S]*?)\n?\1`*$/.exec(text.trim());
   if (match === null) return text;
+  const fence = match[1];
   const body = match[2].trim();
   // The body must contain no fence marker of its own. Without this, the lazy
   // match spans intervening fences, so a document that merely opens and closes
   // with a code block gets its outermost pair deleted and the rest left
   // unbalanced, which is a corrupt document (smartwatermelon/personify#51).
-  if (body.includes("```")) return text;
+  // Compared against the opener's own length: inside a four-backtick fence, a
+  // run of three backticks is legal content, not a nested fence.
+  if (body.includes(fence)) return text;
   const leadParagraph = body.split(/\n\s*\n/)[0]?.trim() ?? "";
   const leadsWithCommentary =
     looksLikeCommentary(leadParagraph) || HANDOFF_PATTERN.test(leadParagraph);

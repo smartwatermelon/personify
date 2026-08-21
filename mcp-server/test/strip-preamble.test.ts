@@ -230,6 +230,23 @@ describe("stripCliPreamble", () => {
     expect(stripCliPreamble(text)).toBe(text);
   });
 
+  // smartwatermelon/personify#52: three backticks are legal content inside a
+  // four-backtick fence, so the inner-fence guard compares against the
+  // opener's own length rather than a hardcoded marker.
+  it("unwraps a four-backtick fence whose body holds a legal triple-backtick run", () => {
+    const text = [
+      "````",
+      "Here's the rewrite:",
+      "",
+      "```",
+      "npm run build",
+      "```",
+      "````",
+    ].join("\n");
+    const out = stripCliPreamble(text);
+    expect(out).toBe("```\nnpm run build\n```");
+  });
+
   it("never returns empty when the input is entirely preamble-shaped", () => {
     const onlyPreamble =
       "This is long-form work writing, so I'll apply the voice guide's rules now.";
