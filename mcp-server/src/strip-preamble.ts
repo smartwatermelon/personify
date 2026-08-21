@@ -116,7 +116,7 @@ export function stripCliPreamble(text: string): string {
     // Text inside a code fence is code, whatever it says. A fenced block whose
     // contents happen to read like commentary is still the user's content
     // (smartwatermelon/personify#51).
-    if (candidate.startsWith("```")) break;
+    if (/^`{3,}/.test(candidate)) break;
     if (looksLikeCommentary(candidate) || HANDOFF_PATTERN.test(candidate)) {
       start += 1;
       continue;

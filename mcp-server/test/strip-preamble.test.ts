@@ -219,6 +219,17 @@ describe("stripCliPreamble", () => {
     expect(out).toBe(text);
   });
 
+  it("treats a four-backtick fenced block as content, not commentary", () => {
+    const text = [
+      "````",
+      "This is an RFC, long-form work writing, so I'll apply the voice guide's rules.",
+      "````",
+      "",
+      "Real content follows.",
+    ].join("\n");
+    expect(stripCliPreamble(text)).toBe(text);
+  });
+
   it("never returns empty when the input is entirely preamble-shaped", () => {
     const onlyPreamble =
       "This is long-form work writing, so I'll apply the voice guide's rules now.";
