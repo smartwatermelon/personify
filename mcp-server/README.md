@@ -140,6 +140,49 @@ looks for it there):
   (`/plugin marketplace add smartwatermelon/personify && /plugin install personify@personify`),
   and requires the OAuth token file described above under "Authenticate."
 
+## Output handling
+
+The tool returns only the personified text. Two things that are _not_ the
+text get kept out of it:
+
+- The verbatim-relay instruction ("treat this as final, don't re-edit it")
+  is addressed to the calling model, so it rides in the tool description. It
+  used to be prepended to the text content, which meant Desktop printed it to
+  the reader above every result (smartwatermelon/personify#50). The result's
+  `_meta` also carries it under a vendor-namespaced key, but that is
+  best-effort only: checked against SDK 1.30.0, nothing forwards a result's
+  `_meta` into model context, so the tool description is what actually
+  delivers the instruction. Don't trim the description on the assumption
+  `_meta` covers it.
+- The CLI-side model sometimes narrates its editing plan before the text
+  ("This is long-form work writing, so I'll apply..."), or introduces it
+  with "Here's the rewrite:". `PERSONIFY_INSTRUCTION` tells it not to, and
+  that alone did not hold, so `stripCliPreamble` removes leading
+  commentary-shaped paragraphs from stdout as well.
+
+The stripper is deliberately conservative, because a false positive silently
+eats the first paragraph of someone's document while a false negative just
+leaves a stray sentence they can ignore. It only considers _leading_
+paragraphs, only when at least one paragraph follows, only when the paragraph
+announces work on the text in hand, and it returns the input unchanged rather
+than ever returning empty. A wrapping code fence is unwrapped only when the
+fenced body itself leads with commentary, since a fence is often the content.
+
+Concretely, a paragraph counts as commentary only when one sentence carries
+both an editing verb and a reference to the machinery doing the editing (the
+skill, the voice guide, a register, "the text"). Either half alone is not
+enough, and both halves were tried and rejected: matching the verb alone ate
+"so I'll edit the contract tonight," and matching the machinery alone ate
+"our voice guide's rules are mostly fine," which is content, since this
+skill's own users write about the skill. Stripping is also bounded to the two
+leading paragraphs of the observed commentary-plus-handoff shape, so a false
+positive cannot cascade through a document, and every strip is logged to
+stderr so one that does fire is diagnosable.
+
+Each of those is now a regression test. If a new preamble shape shows up in
+the wild, add a fixture to `test/strip-preamble.test.ts` rather than
+loosening the patterns.
+
 ## Manual verification checklist
 
 Run this after any change to `mcp-server/src/`, since the automated test
@@ -157,6 +200,11 @@ suite mocks the `claude` subprocess and cannot catch real invocation drift:
    phrasing, and the result reads close to what running
    `/personify:personify` directly in a CLI session on the same input
    produces.
+   Also confirm the reply starts with the edited text itself: no relay
+   instruction, no "This is long-form writing, so I'll apply..." preamble,
+   and no "Here's the rewrite:" line (see "Output handling" above). Use a
+   long, substantive input, since issue #50 reproduced on long-form drafts
+   and not on short ones.
 4. Repeat step 2 in a second, separate fresh Desktop session to confirm no
    session-specific priming is required.
 5. Break it on purpose: temporarily rename the installed personify plugin
