@@ -348,6 +348,162 @@ describe("stripCliPreamble", () => {
     expect(Date.now() - t0).toBeLessThan(250);
   });
 
+  // smartwatermelon/personify#55. The pattern comment promised a first-person
+  // authoring clause, but the bare apply/applying/using anchors did not
+  // require a subject, so third-person sentences naming a rule artifact plus a
+  // terminal word were eaten. Five of six realistic cases lost paragraph one.
+  it.each([
+    [
+      "we should apply",
+      "We should apply the voice guide's fingerprint rules across all drafts.",
+    ],
+    [
+      "the team is applying",
+      "The team is applying the voice guide's rules inconsistently.",
+    ],
+    [
+      "marketing keeps using",
+      "Marketing keeps using the voice guide's notes as a style bible.",
+    ],
+    [
+      "everyone should apply",
+      "Everyone should apply the work-register rules to status updates.",
+    ],
+    [
+      "she's applying",
+      "She's applying the voice guide's calibration to the whole handbook.",
+    ],
+  ])("does not strip third-person discussion of the rules: %s", (_l, first) => {
+    const text = `${first}\n\nThat is now the policy.\n\nAsk me if unclear.`;
+    expect(stripCliPreamble(text)).toBe(text);
+  });
+
+  // smartwatermelon/personify#53. CommonMark lets a closer be longer than its
+  // opener, but no tool output produces one, and accepting it widened the
+  // unwrap surface for nothing.
+  it("does not unwrap a fence whose closer is longer than its opener", () => {
+    const text = "```\nHere's the rewrite:\n\nthe cache was stale.\n`````";
+    expect(stripCliPreamble(text)).toBe(text);
+  });
+
+  // Dropping the bare apply/using anchors for #55 opened a false negative: a
+  // model can narrate without an explicit "I". The distinguishing feature is
+  // position. A preamble opens the paragraph with the gerund; third-person
+  // prose puts a subject in front of it ("the team is applying...").
+  it.each([
+    "Applying the voice guide's rules now:",
+    "Using the work-register rules for this one.",
+    "Applying the voice guide's satire notes to the text.",
+  ])("strips a subjectless narrating preamble: %s", (first) => {
+    const out = stripCliPreamble(`${first}\n\n# Title\n\nBody.`);
+    expect(out.startsWith("# Title")).toBe(true);
+  });
+
+  // The negative cases for #55 were all third person, so they could not detect
+  // that the first-person anchor had the identical defect: it required only
+  // co-occurrence of "I'll" and a rule artifact within the same 200 characters,
+  // not an editing verb governed by that subject. Eight of nine of these lost
+  // paragraph one. This is the tool's core population writing about writing.
+  it.each([
+    [
+      "let me push back",
+      "Let me push back on the work-register rules before we adopt them.",
+    ],
+    [
+      "I'll be honest",
+      "I'll be honest: the voice guide's rules made my writing worse.",
+    ],
+    ["I am tired", "I am tired of arguing about the voice guide's rules."],
+    [
+      "I will never understand",
+      "I will never understand why the voice guide's rules ban semicolons.",
+    ],
+    [
+      "teaching the intern",
+      "I'm using the voice guide's notes to teach the intern.",
+    ],
+    [
+      "asking legal",
+      "I'll ask legal whether the voice guide's rules create any obligation.",
+    ],
+    [
+      "too strict",
+      "I think the voice guide's rules are too strict for external email.",
+    ],
+    [
+      "bring it up at standup",
+      "I'll bring the work-register rules up at standup tomorrow.",
+    ],
+    [
+      "let me know",
+      "Let me know if the voice guide's notes are still accurate.",
+    ],
+  ])("does not strip first-person prose about the rules: %s", (_l, first) => {
+    const text = `${first}\n\nThat is now the policy.\n\nAsk me if unclear.`;
+    expect(stripCliPreamble(text)).toBe(text);
+  });
+
+  // #53, the other direction: a closer SHORTER than its opener is just as
+  // mismatched, and the surplus opener backticks get absorbed by the info
+  // string unless the opener run is anchored to its full length.
+  it.each([
+    ["open 4, close 3", "````\nHere's the rewrite:\n\nconst a = 1;\n```"],
+    ["open 5, close 3", "`````\nHere's the rewrite:\n\nconst a = 1;\n```"],
+    ["open 5, close 4", "`````\nHere's the rewrite:\n\nconst a = 1;\n````"],
+  ])("does not unwrap a fence whose closer is shorter: %s", (_l, text) => {
+    expect(stripCliPreamble(text)).toBe(text);
+  });
+
+  // Captured live after the #53/#55 fixes: a preamble with no first-person
+  // subject at all ("goes through classification step 3", "Apply groups V, W, Z
+  // hard"). Syntax-based patterns cannot reach it, but it stacks seven distinct
+  // pieces of this skill's jargon in one paragraph, which ordinary prose never
+  // does.
+  it("strips a jargon-dense preamble that names no actor", () => {
+    const leaked =
+      "This is a design RFC document \u2014 long-form work writing (>800 words territory in style even if shorter here), goes through classification step 3: work register, first person, but complete sentences retained. Em dashes zero per voice guide overrides. Apply groups V, W, Z hard.";
+    const out = stripCliPreamble(
+      `${leaked}\n\n# RFC: Consolidating\n\nBody text here.`,
+    );
+    expect(out.startsWith("# RFC: Consolidating")).toBe(true);
+  });
+
+  // The density rule must not fire on prose that mentions one or two terms.
+  it.each([
+    ["one term", "I'll bring the work-register rules up at standup tomorrow."],
+    ["two terms", "The voice guide says first person, which I think is right."],
+    [
+      "two terms, opinionated",
+      "Our long-form docs still use em dashes and nobody minds.",
+    ],
+  ])("does not strip prose with only incidental jargon: %s", (_l, first) => {
+    const text = `${first}\n\nThat is now the policy.\n\nAsk me if unclear.`;
+    expect(stripCliPreamble(text)).toBe(text);
+  });
+
+  // Bare "register" and "compression" are ordinary English, so counting them as
+  // jargon let writing about writing reach the density threshold on its own.
+  it.each([
+    [
+      "linguistics",
+      "The register of long-form writing differs from speech. Em dashes and hedging both signal a first person stance.",
+    ],
+    [
+      "music",
+      "Her voice register sits low, and the long-form pieces let it breathe. Compression in the mix flattens em dashes of silence.",
+    ],
+    [
+      "retail",
+      "I need to register the new POS terminal. The long-form contract mentions compression of the fee schedule and hedging on renewals.",
+    ],
+  ])(
+    "does not strip essays that use the terms in their ordinary senses: %s",
+    (_l, first) => {
+      const text = `${first}\n\nSecond paragraph.\n\nThird.`;
+      expect(stripCliPreamble(text)).toBe(text);
+    },
+  );
+
   it("never returns empty when the input is entirely preamble-shaped", () => {
     const onlyPreamble =
       "This is long-form work writing, so I'll apply the voice guide's rules now.";
