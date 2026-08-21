@@ -69,9 +69,14 @@ function normalizeNewlines(text: string): string {
 // fence is often the content: someone personifying prose around a shell
 // snippet would otherwise get the snippet silently unwrapped.
 function stripWrappingFence(text: string): string {
-  const match = /^```[^\n]*\n([\s\S]*?)\n?```$/.exec(text.trim());
+  const match = /^(`{3,})[^\n]*\n([\s\S]*?)\n?\1`*$/.exec(text.trim());
   if (match === null) return text;
-  const body = match[1].trim();
+  const body = match[2].trim();
+  // The body must contain no fence marker of its own. Without this, the lazy
+  // match spans intervening fences, so a document that merely opens and closes
+  // with a code block gets its outermost pair deleted and the rest left
+  // unbalanced, which is a corrupt document (smartwatermelon/personify#51).
+  if (body.includes("```")) return text;
   const leadParagraph = body.split(/\n\s*\n/)[0]?.trim() ?? "";
   const leadsWithCommentary =
     looksLikeCommentary(leadParagraph) || HANDOFF_PATTERN.test(leadParagraph);
@@ -108,6 +113,10 @@ export function stripCliPreamble(text: string): string {
   // after them. Commentary never appears mid-document.
   while (start < paragraphs.length - 1 && start < MAX_STRIPPED_PARAGRAPHS) {
     const candidate = paragraphs[start].trim();
+    // Text inside a code fence is code, whatever it says. A fenced block whose
+    // contents happen to read like commentary is still the user's content
+    // (smartwatermelon/personify#51).
+    if (candidate.startsWith("```")) break;
     if (looksLikeCommentary(candidate) || HANDOFF_PATTERN.test(candidate)) {
       start += 1;
       continue;

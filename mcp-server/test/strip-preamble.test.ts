@@ -198,6 +198,27 @@ describe("stripCliPreamble", () => {
     expect(out).not.toContain("voice guide's rules");
   });
 
+  // smartwatermelon/personify#51. The lazy body match could span intervening
+  // fences, so a multi-fence document whose first block was commentary-shaped
+  // got its outermost fence pair deleted and the rest left unbalanced.
+  it("does not unwrap a multi-fence document whose first block looks like commentary", () => {
+    const text = [
+      "```",
+      "This is an RFC, long-form work writing, so I'll apply the voice guide's rules.",
+      "```",
+      "",
+      "Then we call it.",
+      "",
+      "```js",
+      "const b = 2;",
+      "```",
+    ].join("\n");
+    const out = stripCliPreamble(text);
+    // Fence markers must be conserved: unbalanced fences are a corrupt document.
+    expect((out.match(/```/g) ?? []).length % 2).toBe(0);
+    expect(out).toBe(text);
+  });
+
   it("never returns empty when the input is entirely preamble-shaped", () => {
     const onlyPreamble =
       "This is long-form work writing, so I'll apply the voice guide's rules now.";

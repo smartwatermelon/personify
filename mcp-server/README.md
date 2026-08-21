@@ -177,7 +177,11 @@ enough, and both halves were tried and rejected: matching the verb alone ate
 skill's own users write about the skill. Stripping is also bounded to the two
 leading paragraphs of the observed commentary-plus-handoff shape, so a false
 positive cannot cascade through a document, and every strip is logged to
-stderr so one that does fire is diagnosable.
+stderr so one that does fire is diagnosable. Fenced blocks are never treated
+as commentary, whatever they say: a code block that happens to read like a
+preamble is still the user's content, and unwrapping only happens when the
+fenced body contains no fence of its own, so a document that merely opens and
+closes with a code block keeps its fences balanced.
 
 Each of those is now a regression test. If a new preamble shape shows up in
 the wild, add a fixture to `test/strip-preamble.test.ts` rather than
