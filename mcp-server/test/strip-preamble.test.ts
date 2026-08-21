@@ -247,6 +247,107 @@ describe("stripCliPreamble", () => {
     expect(out).toBe("```\nnpm run build\n```");
   });
 
+  // Captured from a live `claude --print` run against merged main, which the
+  // mocked suite could not have caught. The model picked the verb "classify",
+  // which no enumerated verb list contained, so the leak went straight through
+  // to the user. Enumerating verbs is the wrong shape: the reliable signal is
+  // that the paragraph names this skill's own internal machinery.
+  it("strips a live-captured preamble that uses an unlisted verb", () => {
+    const leaked =
+      "This is an RFC document \u2014 long-form, work-adjacent but reads as writing rather than a message, so I'll classify it under step 3 (long-form work register): complete sentences, first person applied throughout since it's full of unattributed judgments, zero em dashes per the voice guide's work override (an RFC is a written record, not the blog), and heavy compression on the V/Z violations throughout.";
+    const out = stripCliPreamble(
+      `${leaked}\n\n# RFC: Consolidating the Deployment Pipelines\n\nThis is a proposal to merge three pipelines.`,
+    );
+    expect(out.startsWith("# RFC: Consolidating")).toBe(true);
+    expect(out).not.toContain("so I'll classify");
+  });
+
+  it.each([
+    "classify",
+    "treat",
+    "handle",
+    "approach",
+    "keep",
+    "compress",
+    "scope",
+  ])("strips a preamble announcing the work with the verb %s", (verb) => {
+    const text = `This is an RFC, long-form work writing, so I'll ${verb} it under the work-register rules.\n\n# Title\n\nBody.`;
+    const out = stripCliPreamble(text);
+    expect(out.startsWith("# Title")).toBe(true);
+  });
+
+  // The machinery signal must stay specific to this skill's vocabulary. These
+  // reference writing in general, not the skill's rules, and are real content.
+  it.each([
+    [
+      "general editing plan",
+      "The intro buries the point, so I'll rewrite it before Friday.",
+    ],
+    [
+      "general classification",
+      "This is a support ticket, so I'll route it to the platform team.",
+    ],
+    [
+      "style opinion",
+      "This is a design doc, so I'll keep it formal throughout.",
+    ],
+  ])("does not strip ordinary planning: %s", (_label, first) => {
+    const text = `${first}\n\nSecond paragraph survives.`;
+    expect(stripCliPreamble(text)).toBe(text);
+  });
+
+  // The negative cases above are short and skill-vocabulary-free, which an
+  // earlier over-broad design passed while eating realistic prose. These are
+  // multi-sentence paragraphs that DO discuss the skill's own subject matter,
+  // which is what this tool's users actually write.
+  it.each([
+    [
+      "preposition + voice guide",
+      "Per the voice guide, we cut hedges from every draft.",
+    ],
+    ["using the voice guide", "I keep using the voice guide when I draft."],
+    [
+      "apply it to the handbook",
+      "We should apply the voice guide to the whole handbook.",
+    ],
+    ["citing the voice guide", "This example is from the voice guide, page 4."],
+    ["following it", "Following the voice guide got us better copy."],
+    [
+      "work-register conventions",
+      "Under work-register conventions we drop articles.",
+    ],
+    [
+      "team applying it",
+      "The team is applying the voice guide inconsistently.",
+    ],
+    [
+      "multi-sentence about the rules",
+      "Compression is the topic of chapter 9. It covers the work-register rules in detail. Later on, I'll get to the entropy coders.",
+    ],
+  ])(
+    "does not strip prose that discusses the skill's subject: %s",
+    (_l, first) => {
+      const text = `${first}\n\nThat is now the policy.\n\nAsk me if unclear.`;
+      expect(stripCliPreamble(text)).toBe(text);
+    },
+  );
+
+  it("logs the stripped prefix to stderr so a false positive is diagnosable", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    stripCliPreamble(
+      "Here's the rewrite:\n\n# Title\n\nBody text that survives.",
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(String(spy.mock.calls[0][0])).toContain("Here's the rewrite:");
+  });
+
+  it("stays fast on a long unpunctuated paragraph", () => {
+    const long = `I will ${"a ".repeat(40000)}voice guide rules`;
+    const t0 = Date.now();
+    stripCliPreamble(`${long}\n\nbody`);
+    expect(Date.now() - t0).toBeLessThan(250);
+  });
+
   it("never returns empty when the input is entirely preamble-shaped", () => {
     const onlyPreamble =
       "This is long-form work writing, so I'll apply the voice guide's rules now.";

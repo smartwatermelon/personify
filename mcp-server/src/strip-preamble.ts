@@ -17,30 +17,44 @@
 
 // Meta-commentary announcing what the model is about to do.
 //
-// Every pattern requires two things in the same sentence: a verb announcing
-// the editing work, and a reference to the machinery doing it (the skill, the
-// voice guide, a register, "the text"). Requiring only the verb is what made
-// earlier drafts eat real writing, since "so I'll edit the contract tonight"
-// and "so I'll use the new runbook" are ordinary sentences about ordinary
-// work. Requiring only the machinery is just as wrong: this skill's own users
-// write *about* the skill, so "our voice guide's rules are mostly fine" is
-// content, not commentary.
-const MACHINERY = String.raw`(?:voice guide|personify|the skill|work-register|register|the text|rewrite)`;
+// Two failed approaches are worth recording, because the fix sits between
+// them. Enumerating announcing verbs (apply|use|run|rewrite|edit) missed a
+// live leak built on "classify," and 17 of 23 plausible verbs slipped through:
+// the model picks its verb from the whole language, so verb lists never close.
+// Widening to this skill's general vocabulary (long-form, compression, "step
+// 3", first person) plus any first-person phrase went far too far the other
+// way, eating 9 of 10 realistic paragraphs about writing, since people who use
+// this tool write about writing constantly.
+//
+// What actually separates the two is narrower than either: a named rule
+// artifact AND a first-person authoring clause, in the same sentence. Both
+// halves are required. A person writing about writing says "per the voice
+// guide, we cut hedges" or "I keep using the voice guide when I draft"; they
+// mention the artifact without announcing that they are editing this text by
+// it. A preamble says "so I'll apply the voice guide's rules." An earlier
+// draft matched a preposition plus the bare noun, with no authoring clause,
+// and ate the first paragraph of all seven of those realistic sentences.
+//
+// Gap quantifiers are bounded rather than open. Sentence-scoped [^.]* was
+// clean O(n^2) on a long unpunctuated paragraph (367ms at 104KB); the bound
+// makes that 0ms and costs nothing, since a real preamble clause is short.
+const RULE_ARTIFACT = String.raw`(?:voice guide's|voice guide|work[- ]register|classification step|pattern group|group [A-Z]\b(?=[^.]{0,200}\b(?:rule|pattern|tell|apply|applies)))`;
 
 const COMMENTARY_PATTERNS: RegExp[] = [
-  // "...so I'll apply the voice guide's satire notes and personify the text"
+  // The rule artifact plus its rules/notes/fingerprint, the shape both #50
+  // fixtures use: "I'll apply the voice guide's fingerprint and work-register
+  // rules". The first-person authoring clause is required: without it this
+  // fires on someone merely discussing the rules ("our voice guide's rules are
+  // mostly fine"), which is content, not commentary.
   new RegExp(
-    String.raw`\bso I(?:'ll| will)\s+(?:apply|use|run|personify|rewrite|edit)\b[^.]*\b${MACHINERY}\b`,
+    String.raw`\b(?:I(?:'ll| will| am|'m)|let me|applying|apply|using)\b[^.]{0,200}${RULE_ARTIFACT}[^.]{0,200}\b(?:rules|notes|fingerprint|override|calibration)\b`,
     "i",
   ),
-  // "I'll apply the voice guide's fingerprint and work-register rules"
+  // A first-person announcement that classifies the text into this skill's own
+  // register scheme: "so I'll classify it under step 3 (long-form work
+  // register)", "I'm treating this as long-form work register".
   new RegExp(
-    String.raw`\bI(?:'ll| will)\s+(?:apply|personify|rewrite|edit)\s+(?:the|this|it)\b[^.]*\b${MACHINERY}\b`,
-    "i",
-  ),
-  // "applying the voice guide's rules now" / "running the personify skill on this"
-  new RegExp(
-    String.raw`\b(?:applying|running)\s+the\s+${MACHINERY}\b[^.]*\b(?:now|on (?:this|the) (?:text|draft)|rules)\b`,
+    String.raw`\b(?:I(?:'ll| will| am|'m)|let me)\b[^.]{0,200}\b(?:classify|classifying|treat|treating|register)\b[^.]{0,200}\b(?:work register|work-register|long-form work|step \d)\b`,
     "i",
   ),
 ];
