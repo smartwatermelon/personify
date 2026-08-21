@@ -481,6 +481,29 @@ describe("stripCliPreamble", () => {
     expect(stripCliPreamble(text)).toBe(text);
   });
 
+  // Bare "register" and "compression" are ordinary English, so counting them as
+  // jargon let writing about writing reach the density threshold on its own.
+  it.each([
+    [
+      "linguistics",
+      "The register of long-form writing differs from speech. Em dashes and hedging both signal a first person stance.",
+    ],
+    [
+      "music",
+      "Her voice register sits low, and the long-form pieces let it breathe. Compression in the mix flattens em dashes of silence.",
+    ],
+    [
+      "retail",
+      "I need to register the new POS terminal. The long-form contract mentions compression of the fee schedule and hedging on renewals.",
+    ],
+  ])(
+    "does not strip essays that use the terms in their ordinary senses: %s",
+    (_l, first) => {
+      const text = `${first}\n\nSecond paragraph.\n\nThird.`;
+      expect(stripCliPreamble(text)).toBe(text);
+    },
+  );
+
   it("never returns empty when the input is entirely preamble-shaped", () => {
     const onlyPreamble =
       "This is long-form work writing, so I'll apply the voice guide's rules now.";

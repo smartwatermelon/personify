@@ -108,6 +108,12 @@ const HANDOFF_PATTERN =
 //
 // The threshold is four distinct terms. The live leak had seven; the realistic
 // false-positive corpus tops out at two.
+//
+// Terms must be jargon in isolation. Bare "register" and "compression" were on
+// this list and had to come off: they are ordinary English, so a linguistics
+// essay about the register of long-form writing reached four on its own. Terms
+// like "work register" and "voice guide" carry the skill's meaning even out of
+// context, which is what makes them countable.
 const JARGON_TERMS: RegExp[] = [
   /\bvoice guide\b/i,
   /\bwork[- ]register\b/i,
@@ -117,22 +123,41 @@ const JARGON_TERMS: RegExp[] = [
   /\bem dash(?:es)?\b/i,
   /\bfirst person\b/i,
   /\bpattern group\b/i,
-  /\bcompress(?:ion|ing)?\b/i,
   /\bhedg(?:e|es|ing)\b/i,
-  /\bregister\b/i,
 ];
 
 const JARGON_DENSITY_THRESHOLD = 4;
 
+// At least one term must be unambiguously this skill's own machinery, not
+// general writing vocabulary. Without this, an essay about the register of
+// long-form prose reaches four on "long-form", "em dash", "first person" and
+// "hedging" alone, which are what anyone discussing style writes. A preamble
+// always also names the apparatus: the voice guide, a work register, a
+// lettered group, a numbered classification step.
+const SKILL_SPECIFIC_TERMS: RegExp[] = [
+  /\bvoice guide\b/i,
+  /\bwork[- ]register\b/i,
+  /\bclassification step\b|\bstep [1-4]\b/i,
+  /\bgroups? [A-Z]\b/,
+  /\bpattern group\b/i,
+];
+
 function jargonDensity(paragraph: string): number {
   return JARGON_TERMS.filter((term) => term.test(paragraph)).length;
+}
+
+function namesSkillMachinery(paragraph: string): boolean {
+  return SKILL_SPECIFIC_TERMS.some((term) => term.test(paragraph));
 }
 
 function looksLikeCommentary(paragraph: string): boolean {
   if (COMMENTARY_PATTERNS.some((pattern) => pattern.test(paragraph))) {
     return true;
   }
-  return jargonDensity(paragraph) >= JARGON_DENSITY_THRESHOLD;
+  return (
+    jargonDensity(paragraph) >= JARGON_DENSITY_THRESHOLD &&
+    namesSkillMachinery(paragraph)
+  );
 }
 
 // Normalize CRLF up front so paragraph splitting and the returned text never
