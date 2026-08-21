@@ -40,21 +40,48 @@
 // makes that 0ms and costs nothing, since a real preamble clause is short.
 const RULE_ARTIFACT = String.raw`(?:voice guide's|voice guide|work[- ]register|classification step|pattern group|group [A-Z]\b(?=[^.]{0,200}\b(?:rule|pattern|tell|apply|applies)))`;
 
+// A first-person subject directly governing an editing verb aimed at this
+// text. Adverbs may sit between ("I'll now apply"), nothing else: the gap that
+// let "I'll be honest: the voice guide's rules..." through was allowing
+// arbitrary words between the subject and any later verb.
+//
+// The verb list is narrow on purpose. General-purpose verbs like "use," "run,"
+// "follow," and "keep" were in it and produced false positives, because they
+// take objects other than text: "I'm using the voice guide's notes to teach the
+// intern" is a sentence about teaching, not about editing this document.
+const AUTHORING_CLAUSE = String.raw`\b(?:I(?:'ll|'m| will| am| have| can)?|let me)\s+(?:\w+ly\s+|going to\s+|about to\s+|just\s+|now\s+|also\s+){0,2}(?:apply|applying|applied|personify|personifying|rewrite|rewriting|edit|editing|classify|classifying)\b`;
+
 const COMMENTARY_PATTERNS: RegExp[] = [
   // The rule artifact plus its rules/notes/fingerprint, the shape both #50
   // fixtures use: "I'll apply the voice guide's fingerprint and work-register
   // rules". The first-person authoring clause is required: without it this
   // fires on someone merely discussing the rules ("our voice guide's rules are
   // mostly fine"), which is content, not commentary.
+  //
+  // The anchor is a first-person subject DIRECTLY GOVERNING an editing verb, or
+  // a gerund opening the paragraph. Two weaker versions were tried and both ate
+  // real writing. Bare "apply"/"applying"/"using" anywhere in the sentence ate
+  // five of six third-person sentences ("the team is applying the voice guide's
+  // rules inconsistently"), since a verb with no subject is ordinary prose
+  // (#55). Then a bare "I'll"/"let me" anywhere in the same 200 characters as a
+  // rule artifact ate eight of nine first-person ones ("let me push back on the
+  // work-register rules", "I'll be honest: the voice guide's rules made my
+  // writing worse"), since co-occurrence is not an authoring clause. The
+  // subject has to actually govern the editing verb.
   new RegExp(
-    String.raw`\b(?:I(?:'ll| will| am|'m)|let me|applying|apply|using)\b[^.]{0,200}${RULE_ARTIFACT}[^.]{0,200}\b(?:rules|notes|fingerprint|override|calibration)\b`,
+    String.raw`(?:${AUTHORING_CLAUSE}|^(?:applying|using)\b)[^.]{0,200}${RULE_ARTIFACT}[^.]{0,200}\b(?:rules|notes|fingerprint|override|calibration)\b`,
     "i",
   ),
-  // A first-person announcement that classifies the text into this skill's own
+  // A first-person announcement that sorts the text into this skill's own
   // register scheme: "so I'll classify it under step 3 (long-form work
-  // register)", "I'm treating this as long-form work register".
+  // register)", "I'm treating this as long-form work register". The verb is
+  // deliberately unconstrained here, because verb enumeration is what failed in
+  // #50. What carries the weight instead is the preposition: a classification
+  // sorts the text INTO the scheme ("under step 3", "as long-form work"),
+  // whereas prose merely mentioning it does not ("let me push back on the
+  // work-register rules", "I'll bring the work-register rules up at standup").
   new RegExp(
-    String.raw`\b(?:I(?:'ll| will| am|'m)|let me)\b[^.]{0,200}\b(?:classify|classifying|treat|treating|register)\b[^.]{0,200}\b(?:work register|work-register|long-form work|step \d)\b`,
+    String.raw`\b(?:I(?:'ll| will| am|'m)|let me)\b[^.]{0,200}\b(?:as|under|per|into|using)\s+(?:the\s+|a\s+)?(?:[\w-]+\s+){0,3}(?:work register|work-register|long-form work|classification step|step \d)\b`,
     "i",
   ),
 ];
@@ -69,8 +96,43 @@ const COMMENTARY_PATTERNS: RegExp[] = [
 const HANDOFF_PATTERN =
   /^here(?:'s| is) (?:the|my) (?:rewrite|edit|revised|personified|personified text|final version|edited text)\s*:?\s*$/i;
 
+// Jargon density, the signal that survives any phrasing.
+//
+// The patterns above are syntactic, and a live run defeated them with a
+// preamble that names no actor at all ("goes through classification step 3",
+// "Apply groups V, W, Z hard"). Three rounds of this file have now shown the
+// same thing: the model's phrasing varies faster than syntax can enumerate.
+// What does not vary is the subject matter. A preamble is a dense discussion
+// of this skill's rule system, stacking many distinct terms in one paragraph.
+// Ordinary prose about writing mentions one or two in passing.
+//
+// The threshold is four distinct terms. The live leak had seven; the realistic
+// false-positive corpus tops out at two.
+const JARGON_TERMS: RegExp[] = [
+  /\bvoice guide\b/i,
+  /\bwork[- ]register\b/i,
+  /\bclassification step\b|\bstep [1-4]\b/i,
+  /\bgroups? [A-Z]\b/,
+  /\blong-form\b/i,
+  /\bem dash(?:es)?\b/i,
+  /\bfirst person\b/i,
+  /\bpattern group\b/i,
+  /\bcompress(?:ion|ing)?\b/i,
+  /\bhedg(?:e|es|ing)\b/i,
+  /\bregister\b/i,
+];
+
+const JARGON_DENSITY_THRESHOLD = 4;
+
+function jargonDensity(paragraph: string): number {
+  return JARGON_TERMS.filter((term) => term.test(paragraph)).length;
+}
+
 function looksLikeCommentary(paragraph: string): boolean {
-  return COMMENTARY_PATTERNS.some((pattern) => pattern.test(paragraph));
+  if (COMMENTARY_PATTERNS.some((pattern) => pattern.test(paragraph))) {
+    return true;
+  }
+  return jargonDensity(paragraph) >= JARGON_DENSITY_THRESHOLD;
 }
 
 // Normalize CRLF up front so paragraph splitting and the returned text never
@@ -83,7 +145,14 @@ function normalizeNewlines(text: string): string {
 // fence is often the content: someone personifying prose around a shell
 // snippet would otherwise get the snippet silently unwrapped.
 function stripWrappingFence(text: string): string {
-  const match = /^(`{3,})[^\n]*\n([\s\S]*?)\n?\1`*$/.exec(text.trim());
+  // The closer must match the opener exactly. CommonMark permits a longer
+  // closer, but no tool output produces one, and allowing it only widened the
+  // unwrap surface (#53). Both guards are load-bearing. Without the lookbehind
+  // a longer closer still matches, since the regex takes the last three
+  // backticks and folds the leading two into the body. Without (?!`) after the
+  // opener a SHORTER closer matches, since {3,} backtracks to three and the
+  // surplus opener backticks get absorbed by the info string.
+  const match = /^(`{3,})(?!`)[^\n]*\n([\s\S]*?)\n?(?<!`)\1$/.exec(text.trim());
   if (match === null) return text;
   const fence = match[1];
   const body = match[2].trim();
