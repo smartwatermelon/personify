@@ -83,6 +83,35 @@ describe("runPersonify", () => {
     expect(result).toEqual({ ok: true, text: "some, text with an em dash" });
   });
 
+  // smartwatermelon/personify#50: PERSONIFY_INSTRUCTION already said "no
+  // commentary, no preamble" and the CLI model emitted one anyway, so the
+  // stripping pass runs on stdout rather than trusting the prompt.
+  it("strips a leaked commentary preamble from CLI stdout", async () => {
+    const child = makeFakeChild();
+    spawnMock.mockReturnValue(child);
+
+    const resultPromise = runPersonify("draft text");
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1));
+    child.stdout.emit(
+      "data",
+      Buffer.from(
+        "This is an RFC/proposal document, long-form work writing, so I'll apply the voice guide's fingerprint and work-register rules.\n\nHere's the rewrite:\n\n# RFC: Personal Token Rollover\n\nEvery month my unused tokens evaporate.\n",
+      ),
+    );
+    child.emit("close", 0);
+
+    const result = await resultPromise;
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.text.startsWith("# RFC: Personal Token Rollover")).toBe(
+        true,
+      );
+      expect(result.text).not.toContain("so I'll apply");
+      expect(result.text).not.toContain("Here's the rewrite:");
+      expect(result.text).toContain("Every month my unused tokens evaporate.");
+    }
+  });
+
   it("maps non-zero exit code to a CliResult error including stderr", async () => {
     const child = makeFakeChild();
     spawnMock.mockReturnValue(child);

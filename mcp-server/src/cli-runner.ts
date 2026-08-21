@@ -1,11 +1,16 @@
 import { spawn } from "node:child_process";
 import type { CliResult } from "./types.js";
 import { loadOAuthToken } from "./token.js";
+import { stripCliPreamble } from "./strip-preamble.js";
 
 export const PERSONIFY_INSTRUCTION =
-  "Run the personify:personify skill on the text provided via stdin and " +
-  "return only the resulting text, no commentary, no preamble, no markdown " +
-  "code fence around it.";
+  "Run the personify:personify skill on the text provided via stdin. Your " +
+  "entire response must be the resulting text and nothing else. Do not " +
+  "explain what register the text is, do not state which rules you are " +
+  "applying, do not announce what you are about to do, and do not introduce " +
+  'the result with a line like "Here\'s the rewrite:". Start your response ' +
+  "with the first character of the edited text. No preamble, no commentary, " +
+  "no trailing notes, no markdown code fence around it.";
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -73,7 +78,7 @@ export async function runPersonify(
       settled = true;
       clearTimeout(timer);
       if (code === 0) {
-        resolve({ ok: true, text: stdout.trim() });
+        resolve({ ok: true, text: stripCliPreamble(stdout) });
       } else {
         resolve({
           ok: false,

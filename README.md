@@ -97,7 +97,7 @@ pr-review    →    personify    →    dumbify
 [pr-review](https://github.com/smartwatermelon/pr-review) already calls
 personify directly: its Phase 5 drafts the review, then runs the draft through
 this skill before showing it to you for approval. If personify isn't installed,
-pr-review says so and shows the plain draft rather than failing — the prose pass
+pr-review says so and shows the plain draft rather than failing. The prose pass
 isn't load-bearing for the review's substance.
 
 [dumbify](https://github.com/smartwatermelon/dumbify) is an optional pass after
@@ -105,7 +105,7 @@ personify, and the two overlap. Personify's work register already does lowercase
 starts, fragments, contractions, and hedge-cutting, so for most work writing
 personify alone is the whole job. Dumbify pushes the register further than
 personify will: its default level 2 is roughly where personify's work register
-already lands, and levels 3–4 go past it. Order matters — personify first.
+already lands, and levels 3 and 4 go past it. Order matters: personify first.
 Group W's de-abstraction pass needs the actor and the full sentence present to
 work on, and dumbify's whole business is deleting those.
 

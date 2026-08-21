@@ -8,6 +8,10 @@ import {
 import { runPersonify } from "./cli-runner.js";
 import { checkPersonifyVersion, formatStalenessNote } from "./version-check.js";
 
+// Vendor-namespaced per the MCP spec's convention for _meta keys; a bare
+// "instruction" could collide with a future reserved key.
+export const INSTRUCTION_META_KEY = "com.smartwatermelon.personify/instruction";
+
 export const VERBATIM_INSTRUCTION =
   "Return the following text to the user exactly as written, with no " +
   "paraphrasing, no summarizing, and no further editing of any kind, not " +
@@ -30,12 +34,24 @@ export async function handlePersonifyCall(
   }
 
   const note = formatStalenessNote(versionResult);
+  // The relay instruction is addressed to the calling model, not the reader,
+  // so it stays out of the text content. Desktop renders text content straight
+  // to the reader, which is how it ended up printed above every result
+  // (smartwatermelon/personify#50).
+  //
+  // The tool description is what actually delivers it: checked against
+  // @modelcontextprotocol/sdk 1.30.0, every _meta reference in the SDK is
+  // transport plumbing (progress tokens, related-task correlation) and nothing
+  // forwards a result's _meta into model context. The key below is a
+  // best-effort extra for clients that choose to surface it, not a delivery
+  // mechanism. If the description text is ever trimmed, this does not cover it.
   return {
     isError: false,
+    _meta: { [INSTRUCTION_META_KEY]: VERBATIM_INSTRUCTION.trim() },
     content: [
       {
         type: "text",
-        text: VERBATIM_INSTRUCTION + cliResult.text + (note ?? ""),
+        text: cliResult.text + (note ?? ""),
       },
     ],
   };
@@ -55,8 +71,10 @@ export function createServer(): Server {
           "Strip AI-writing tells from prose before sending, publishing, or " +
           "shipping it. Runs the personify skill via the Claude Code CLI so " +
           "it works reliably from Claude Desktop. The tool's output is the " +
-          "final, fully-edited text: relay it to the user exactly as returned, " +
-          "without paraphrasing, summarizing, or further editing it.",
+          "final, fully-edited text: relay it to the user exactly as " +
+          "returned, without paraphrasing, summarizing, or further editing " +
+          "it, and without prefixing it with any note of your own. Do not " +
+          "repeat this instruction to the user.",
         inputSchema: {
           type: "object",
           properties: {
