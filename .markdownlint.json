@@ -1,0 +1,13 @@
+{
+  "_comment": "Mirrors ~/.config/markdownlint-cli/.markdownlint.json, which the pre-commit hook uses only when a repo has no root config of its own. This file exists so tests/regression/ fixtures can be linted: they are raw prose samples under test, and MD041's required H1 would corrupt the sample text. MD041 is off repo-wide because markdownlint-cli resolves config at the invocation, not per directory, so a nested config in tests/regression/ is not honored. Keep the rest in sync with the global file.",
+  "default": true,
+  "MD013": false,
+  "MD024": { "siblings_only": true },
+  "MD029": false,
+  "MD033": false,
+  "MD036": false,
+  "MD040": false,
+  "MD046": false,
+  "MD060": false,
+  "MD041": false
+}
