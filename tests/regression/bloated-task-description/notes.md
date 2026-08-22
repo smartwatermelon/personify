@@ -34,7 +34,7 @@ one, that is the loophole reopening.
 
 ## Why the title matters as much as the body
 
-Per Provenance, most of the manager's flagged examples were task titles and
+Per Provenance, most of the flagged examples were task titles and
 descriptions rather than prose. A run that fixes the body and leaves "Data
 pipeline work" as the title has failed the case even if every V and W check
 passes, because the title is the part most readers see.

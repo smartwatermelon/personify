@@ -98,7 +98,7 @@ pr-review    →    personify    →    dumbify
 personify directly: its Phase 5 drafts the review, then runs the draft through
 this skill before showing it to you for approval. If personify isn't installed,
 pr-review says so and shows the plain draft rather than failing. The prose pass
-isn't load-bearing for the review's substance.
+isn't essential to the review's substance.
 
 [dumbify](https://github.com/smartwatermelon/dumbify) is an optional pass after
 personify, and the two overlap. Personify's work register already does lowercase
