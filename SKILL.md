@@ -1,6 +1,6 @@
 ---
 name: personify
-version: 0.5.1
+version: 0.5.2
 description: Strip AI-writing tells from prose before sending, publishing, or shipping it. Use when editing text (emails, docs, comments, PRs, blog drafts, essays) someone else will read. Compresses wordy phrasing, puts a person back in impersonal sentences, and reframes implementation detail as outcomes a non-expert reader can see the value in. Covers task boards and PR comments, not just prose. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
@@ -23,7 +23,7 @@ If a voice guide is found, read it fully and treat it as authoritative. It descr
 
 If no voice guide is found, read `VOICE.example.md` (in this skill's directory) for what one looks like and how to build it. Without a voice guide this skill makes text non-robotic but not distinctive: clean, competent, anonymous. Proceed with the general rules and say so, so the user knows a voice guide is what turns "not obviously AI" into "sounds like them."
 
-The voice guide is personal and never committed (git-ignored, like `.env`). It lives at a stable path outside the plugin install on purpose: the plugin installs into a version-pinned directory that is replaced on every upgrade, so a guide kept inside the install would be lost on each update. The committed `VOICE.example.md` documents the shape without containing anyone's voice.
+The voice guide is personal and never committed (git-ignored, like `.env`). It lives at a stable path outside the plugin install on purpose: the plugin installs into a version-pinned directory that is replaced on every upgrade, so a guide kept inside the install would be lost on each update. The committed `VOICE.example.md` documents the structure without containing anyone's voice.
 
 ## Process
 
@@ -42,7 +42,7 @@ Watch for: "stands as a testament to," "marks a pivotal moment," "underscores it
 
 ### B. Empty vocabulary cluster
 
-Words that spike hard in LLM output relative to human baseline: delve, intricate, tapestry, foster, garner, underscore (verb), leverage, holistic, navigate (figurative), robust, landscape (abstract), testament, vibrant, crucial, pivotal.
+Words that spike hard in LLM output relative to human baseline: delve, intricate, tapestry, foster, garner, underscore (verb), leverage, holistic, navigate (figurative), robust, landscape (abstract), shape (abstract, for a process or idea rather than a physical object), load-bearing (figurative, for anything other than an actual physical support), testament, vibrant, crucial, pivotal.
 
 Extended set: meticulous, bolster, interplay, multifaceted, nuanced (as filler), utilize, commence, facilitate, encompass, paramount, groundbreaking, cutting-edge, game-changing, transformative, revolutionize, seamless, comprehensive (describing your own output), endeavor, aforementioned, harness, spearhead, showcase, unprecedented, remarkable, profound, synergy, pain points, thought leadership, moving forward, circle back, rest assured, in essence, it goes without saying.
 
@@ -62,7 +62,7 @@ These are weighted signals, not banned words. One in isolation means nothing, an
 
 ### E. Rule of three, everywhere
 
-Not just three-item lists ("innovation, inspiration, insight") but three-part *structures*: three-step processes, three examples, three parallel clauses per paragraph, used as the load-bearing skeleton of an entire piece. If you can't stop finding threes, you're pattern-completing. Vary list length; use two, four, or none.
+Not just three-item lists ("innovation, inspiration, insight") but three-part *structures*: three-step processes, three examples, three parallel clauses per paragraph, used as the skeleton of an entire piece. If you can't stop finding threes, you're pattern-completing. Vary list length; use two, four, or none.
 
 ### F. Epistrophe / repetition as gravity
 
@@ -141,7 +141,7 @@ A sentence asserts its own importance in place of content: "the key insight here
 
 ### U. Point-by-point question mirroring
 
-Quoting or restating each of the asker's sub-points in order, then answering each fully in its own paragraph, so the response's structure exactly tracks the question's enumeration. This reads as assistant-triage regardless of how good the individual answers are: a human reply merges points, answers out of order, or skips a sub-question the first answer already covers. Fix: answer in flowing prose using the order the points naturally connect in, not the order they were asked in. Fix it by changing the response's shape, not by chopping sentences at random: the two problems are separate, and fragmenting a mirrored answer leaves it still mirrored. In long-form prose, complete correctly punctuated sentences are not themselves a tell (see What NOT to flag). In work communication, fragments are actively wanted, but for the reasons in Work register, not as a fix for this group.
+Quoting or restating each of the asker's sub-points in order, then answering each fully in its own paragraph, so the response's structure exactly tracks the question's enumeration. This reads as assistant-triage regardless of how good the individual answers are: a human reply merges points, answers out of order, or skips a sub-question the first answer already covers. Fix: answer in flowing prose using the order the points naturally connect in, not the order they were asked in. Fix it by reorganizing the response, not by chopping sentences at random: the two problems are separate, and fragmenting a mirrored answer leaves it still mirrored. In long-form prose, complete correctly punctuated sentences are not themselves a tell (see What NOT to flag). In work communication, fragments are actively wanted, but for the reasons in Work register, not as a fix for this group.
 
 ### V. Too many words for a simple concept
 
@@ -186,7 +186,7 @@ Uniform sentence length: three consecutive sentences of roughly the same length 
 
 Parataxis: a run of short declaratives with no connective tissue. "The build failed. The cache was stale. I cleared it." Reads like a poem, signals AI immediately. Connect them so the syntax shows how the ideas relate: "build failed because the cache was stale, cleared it."
 
-Related structural tells: identical paragraph shape throughout (topic sentence, explanation, example, transition, repeat), parallel structure across every section, and more than five to seven bullets in a row. Vary the shape. Let some paragraphs be one sentence. Let some end without a transition.
+Related structural tells: the same paragraph pattern repeated throughout (topic sentence, explanation, example, transition, repeat), parallel structure across every section, and more than five to seven bullets in a row. Vary it. Let some paragraphs be one sentence. Let some end without a transition.
 
 Note the interaction with V: compression is not permission to produce parataxis. Compress by cutting words, then connect what remains with conjunctions and subordination, not by chopping into a stack of stubs.
 
@@ -202,7 +202,7 @@ Also in this family: filler transitions used as connective tissue, "moreover," "
 
 The text lists what was built, in accurate technical terms, and never says what it produces or why anyone should care. Every noun is correct. The reader still cannot tell what they got. Compression does not fix this one, which is what separates it from V and W.
 
-"Ingest glue for the staging bucket, flat-file index, no managed DB for a trial, single container deployment, matches the layout two other services already use" is the shape. It is precise, dense, and honest, and it fails, because it answers "what did you assemble" when the reader asked "what can we do now that we could not do before."
+"Ingest glue for the staging bucket, flat-file index, no managed DB for a trial, single container deployment, matches the layout two other services already use" is the pattern. It is precise, dense, and honest, and it fails, because it answers "what did you assemble" when the reader asked "what can we do now that we could not do before."
 
 The test, and it is a hard one to pass: **if this were shown to the person paying for the work, could they tell why it was worth paying for?** Not whether they would understand the jargon. Whether they could see the point. Apply it to every task title, milestone, status update, and PR description.
 
@@ -227,7 +227,7 @@ A clean human writer can hit several of these once without being AI. Don't treat
 - Curly quotes alone (most editors auto-curl)
 - A single clipped sentence for emphasis
 - Unsourced claims in casual writing: most human writing is unsourced too
-- Complete, grammatical, one-point-per-paragraph writing **in long-form prose**: in essays, articles, and personal writing, correct grammar is not itself a tell, and if that register is the writer's real voice, keep it. This protection does **not** extend to work communication: see Work register below, where the polished complete-sentence default is the primary thing to strip. The thing pattern U flags is response *shape* (mirroring a question's enumeration point-by-point), never sentence quality in prose.
+- Complete, grammatical, one-point-per-paragraph writing **in long-form prose**: in essays, articles, and personal writing, correct grammar is not itself a tell, and if that register is the writer's real voice, keep it. This protection does **not** extend to work communication: see Work register below, where the polished complete-sentence default is the primary thing to strip. The thing pattern U flags is response *structure* (mirroring a question's enumeration point-by-point), never sentence quality in prose.
 
 Look for **clusters**, not single hits. The user's own read on what counts as a cluster may differ from any published list; when in doubt, ask rather than defaulting to a canonical source.
 
@@ -249,14 +249,14 @@ How to classify anything not on that list, in order:
 
 1. Is it reference material with no human actor (API docs, specs, generated documentation)? Neutral register. Stop here.
 2. Is it a message to a person, or a short artifact a colleague reads and acts on? Work register, however formal the subject. Stop here, regardless of length: a long ticket is still a ticket.
-3. Is it long (roughly 800 words or more) and meant to be read as a piece of writing rather than as a message? Long-form. Keep the calibration in What NOT to flag: complete sentences, no forced informality. Groups V, W, and Z still apply in full, and What NOT to flag's protection of complete grammatical prose covers sentence shape only, never the amount of padding. See the paragraph below this list before applying it.
+3. Is it long (roughly 800 words or more) and meant to be read as a piece of writing rather than as a message? Long-form. Keep the calibration in What NOT to flag: complete sentences, no forced informality. Groups V, W, and Z still apply in full, and What NOT to flag's protection of complete grammatical prose covers how sentences are put together only, never the amount of padding. See the paragraph below this list before applying it.
 4. Still ambiguous? Ask which register the user wants rather than guessing. Getting this wrong is expensive in both directions.
 
-Step 3 exempts a text from forced informality. It does not exempt it from groups V, W, and Z. Length is not evidence that the words are doing work: a 4000-word design doc can carry a 400-word idea, and the long-form classification is about sentence shape and register, never about the ratio of words to ideas. Run the V test (is the idea smaller than the word count?), the W test (who did this, and are they in the sentence?), and the Z test (could the person paying for this see why it was worth paying for?) on long-form text exactly as hard as on a Slack message. What changes at step 3 is that the compressed result keeps complete sentences and standard capitalization. What does not change is how much gets cut.
+Step 3 exempts a text from forced informality. It does not exempt it from groups V, W, and Z. Length is not evidence that the words are doing work: a 4000-word design doc can carry a 400-word idea, and the long-form classification is about how sentences are built and about register, never about the ratio of words to ideas. Run the V test (is the idea smaller than the word count?), the W test (who did this, and are they in the sentence?), and the Z test (could the person paying for this see why it was worth paying for?) on long-form text exactly as hard as on a Slack message. What changes at step 3 is that the compressed result keeps complete sentences and standard capitalization. What does not change is how much gets cut.
 
 This is the loophole worth watching for, because it is the one that lets the original complaint back in. A padded status update classified as a message gets compressed. The same padding inside a long document can pass as "that register is just formal," and formal is precisely how the polished-but-empty writing reads.
 
-The two axes are audience and length, and they come apart. A company blog post is work by purpose but long-form by shape, so it takes classification step 3 above. A long design doc is the same: work-register vocabulary and first person, but complete sentences rather than lowercase fragments, because nobody skims a 4000-word architecture doc the way they skim Slack. A README sits between reference and message; if it explains decisions and tradeoffs, it takes the first person, and if it only documents an interface, it goes neutral. External email to a customer or vendor is work register with the informality dialed back: contractions and first person yes, lowercase starts and fragments no.
+The two axes are audience and length, and they come apart. A company blog post is work by purpose but long-form by nature, so it takes classification step 3 above. A long design doc is the same: work-register vocabulary and first person, but complete sentences rather than lowercase fragments, because nobody skims a 4000-word architecture doc the way they skim Slack. A README sits between reference and message; if it explains decisions and tradeoffs, it takes the first person, and if it only documents an interface, it goes neutral. External email to a customer or vendor is work register with the informality dialed back: contractions and first person yes, lowercase starts and fragments no.
 
 The premise: a careful writer's natural work register is polished, complete, evenly hedged, and impersonal, and that register is now indistinguishable from model output. Grammatical polish is not the goal here. Sounding like a specific tired person typing between meetings is the goal. Bias hard toward informal and short. When a rewrite feels too blunt or too casual, it is probably right.
 
@@ -310,7 +310,7 @@ A specific failure mode within technical content: unearned structure and defensi
 - **No inflated stakes on routine changes.** "grants the service account the permissions it needs" beats "a critical step in modernizing our access architecture." Say the plain thing.
 - **Match the local register.** If the team's PRs run to fragments and lowercase starts, that's the norm, not a lapse. Don't upgrade a one-line change into a complete, formally punctuated paragraph out of reflex.
 - **Label review-comment severity explicitly.** "Nit:" / "Optional:" / "FYI:" instead of diplomatic hedging that leaves the reader guessing whether something is blocking.
-- **Say the one thing you concluded, not everything a review surfaced.** Your teammates can run the same automated review you can, so a comprehensive findings dump adds nothing they couldn't generate themselves, and it reads as generated precisely because it is the shape a tool produces. Value comes from judgment: which finding actually matters here, and what you think should happen. One considered comment beats eight correct ones. If you reviewed with a tool, that's fine, but what you post should be the conclusion you reached after reading it, in your words.
+- **Say the one thing you concluded, not everything a review surfaced.** Your teammates can run the same automated review you can, so a comprehensive findings dump adds nothing they couldn't generate themselves, and it reads as generated precisely because it is what an automated tool produces. Value comes from judgment: which finding actually matters here, and what you think should happen. One considered comment beats eight correct ones. If you reviewed with a tool, that's fine, but what you post should be the conclusion you reached after reading it, in your words.
 - **No chatbot sign-offs.** Cut "let me know if you have questions," "happy to adjust," "hope this helps." If there's a real open question, ask it directly and stop there.
 - **Code blocks for exact output.** Terminal output, error messages, and diffs go in a code block verbatim, never paraphrased into prose.
 - **One paragraph is usually the ceiling for "why."** Plenty of real, substantial PRs ship with no written description beyond the title. Default to letting the title and diff carry the load; add prose only when a reviewer would otherwise be confused.
