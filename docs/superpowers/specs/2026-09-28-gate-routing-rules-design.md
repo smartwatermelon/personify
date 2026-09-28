@@ -80,9 +80,14 @@ author=andrewmrich                  pangram
 Matchers are `repo=<owner/name>`, `author=<login>` and `*`. Matching ignores
 case, because GitHub names do and `gh-wrapper.sh` already lowercases owners.
 
-Agent writes to the file are blocked by a hook of the same kind that protects
-merge locks. An exemption Claude can edit is an exemption Claude can grant
-itself, which the boundary spec already rules out.
+An exemption Claude can edit is an exemption Claude can grant itself, which the
+boundary spec already rules out. Two layers keep the file out of reach.
+`~/.claude/gate-rules.conf` joins the paths `hook-block-gate-dir-write.sh` and
+`hook-block-merge-locks-write.sh` already refuse to write. Those are forcing
+functions, not locks: `hook-block-gate-dir-write.sh` documents that variable
+spelled paths and an overridden environment get past it. The stronger layer is
+review. The tracked copy changes only through a `claude-config` pull request,
+which needs a human merge lock.
 
 A missing file or a line the parser rejects blocks the publish. The message
 names the file and the line. There is no silent fallback, so a typo cannot
@@ -141,9 +146,17 @@ router and check what the outcome requires:
 
 - `visual`: the bytes must match a visual approval, as today.
 - `pangram`: the bytes must match a visual approval and a check record must
-  exist for those exact bytes. `gate-review.sh check` gains a
-  `--require-record` flag. Records are keyed by the sha256 of the raw bytes in
-  `~/.config/personify/checks/`, and `_record_path` already computes the path.
+  exist for those exact bytes. Records are keyed by the sha256 of the raw bytes
+  in `~/.config/personify/checks/`, and `_record_path` already computes the
+  path.
+
+`gate-review.sh check <file>` becomes route-aware. It takes optional
+`--repo <owner/name>` and `--dir <path>`, calls the router itself, and enforces
+the record requirement. The hook and the wrapper only resolve the destination
+from the command and pass it in, so the enforcement lives in one place. A
+`check` call with no destination treats the destination as unresolved, which
+routes to rule 3 and keeps every existing caller working. On failure `check`
+prints one line naming the rule and whether a record exists.
 
 If the hook's outcome is stricter than the outcome staging assumed, the publish
 is blocked. The message reads "Pangram-gated by rule 2; no check ran on these
@@ -167,7 +180,8 @@ Bats, matching `test_gh_wrapper.bats`.
 - `gate-review.sh`. A `visual` item stages without a record and its buffer
   shows the banner. The banner is absent from the approved bytes and the hash
   is unchanged. A `pangram` item still refuses to stage without a record.
-  `check --require-record` passes and fails correctly.
+  `check --repo --dir` passes and fails correctly for each outcome, and a
+  `check` with no destination behaves as it does today.
 - Hook and wrapper. A `pangram` outcome with no record blocks with the "no
   check ran" message. With an `AI` record it shows the "verdict exists"
   message. A `visual` outcome passes with approval.
@@ -176,28 +190,36 @@ Bats, matching `test_gh_wrapper.bats`.
 
 ## Rollout
 
-Three pull requests, in order:
+Four pull requests, in order:
 
-1. `dotfiles`: extract `_gh_wrapper_identity_for_owner`, no behavior change.
-2. `claude-config`: the router, the rules file, and the `gate-review.sh`,
-   hook-block-personify and wrapper changes. This is the one that reduces
-   Pangram volume.
-3. `personify`: this spec, which supersedes the boundary spec's line that pull
-   request descriptions are gated everywhere and its destination-based exempt
-   list.
+1. `personify`: this spec and its plan. It supersedes the boundary spec's line
+   that pull request descriptions are gated everywhere and its
+   destination-based exempt list.
+2. `dotfiles`: extract `_gh_wrapper_identity_for_owner`, no behavior change.
+3. `claude-config`: the router, the rules file, and the `gate-review.sh`,
+   hook-block-personify and write-protection changes. This is the one that
+   reduces Pangram volume. The router sources the deployed `gh-wrapper.sh`,
+   which is a symlink into the `dotfiles` checkout, so pull request 2 must be
+   merged and pulled first.
+4. `dotfiles`: the `gh` wrapper's approval gate passes the destination to
+   `check`. Until this lands, manual `gh` calls reach `check` with no
+   destination and route to `visual`. The Bash-tool hook covers the agent path
+   in that window, and the two gates are redundant by design.
 
 The model pin in `scripts/pangram_check.py` is a separate change and does not
 depend on any of these.
 
 ## Known weaknesses
 
-The record check proves a file exists, not that Pangram was called. Claude can
-write into `~/.config/personify/checks/`, so a hand-written record would
-satisfy `--require-record`. `stage` has the same exposure today. Reading the
+The record check proves a file exists, not that Pangram was called. Records are
+unsigned. `hook-block-gate-dir-write.sh` refuses Bash writes into
+`~/.config/personify/checks/`, but it is a regex forcing function, and its own
+header lists the ways past it: variable spelled paths, and setting
+`XDG_CONFIG_HOME` to a directory the agent controls. A hand-written record would
+then satisfy the check. `stage` has the same exposure today. Reading the
 record's contents would confirm a task id, a real verdict and a matching hash,
 and still would not prove the call. Full protection needs a record signed with
-a key the agent cannot read, or a write-protected directory like the gate
-directory. This design does not close it.
+a key the agent cannot read. This design does not close it.
 
 Author is intended identity, resolved from the repository owner. A commit in a
 `twistedmelonman` repository written with an employer email is treated as
