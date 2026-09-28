@@ -72,12 +72,16 @@ EXIT_UNAVAILABLE = 5
 # short text is skipped rather than trusted. Never stamp a skipped text.
 WORD_FLOOR = 40
 
-DEFAULT_MODEL = "default"
+# Pinned by name. The literal "default" alias routes to Pangram 3.3.2 until it
+# retires on 2026-09-30, then to Pangram 4 at a tenfold price for long texts,
+# so relying on it makes the bill depend on the date.
+DEFAULT_MODEL = "pangram-4"
 
-# The only values the API is hardcoded against, because pricing is not
-# exposed by any endpoint. An unknown model reports a null cost rather than a
-# wrong one.
-COST_PER_WORD = {"default": 0.00005, "pangram-4": 0.0005}
+# The only prices the API is hardcoded against, because pricing is not exposed
+# by any endpoint: (dollars, words per billing unit). Pangram bills each started
+# unit, so a 101-word text costs two units. An unknown model, "default"
+# included, reports a null cost rather than a wrong one.
+PRICE_PER_UNIT = {"pangram-4": (0.05, 100)}
 
 # A window is flagged when its label is anything other than Human Written.
 # Key on the exact strings the API returns; the observed set is below.
@@ -638,10 +642,11 @@ def flagged_spans(result: dict, submitted: str) -> list[dict]:
 
 
 def estimated_cost(model: str, words: int) -> float | None:
-    rate = COST_PER_WORD.get(model)
-    if rate is None:
+    price = PRICE_PER_UNIT.get(model)
+    if price is None:
         return None
-    return round(rate * words, 6)
+    dollars, unit_words = price
+    return round(dollars * -(-words // unit_words), 6)
 
 
 def _write_private_json(directory: Path, digest: str, payload: dict) -> Path:
