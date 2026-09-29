@@ -215,7 +215,7 @@ Start only after PR B is merged and installed.
 **Interfaces:**
 
 - Consumes: `gate-review.sh check <file> --repo R --dir D` (Task 5).
-- Produces: `_gh_wrapper_approval_gate` records the `-R`/`--repo` value (it already skips it) and, for `gh api`, the `repos/<owner>/<name>` path. It calls `"${gate}" check "${body_file}" --dir "${PWD}"` and adds `--repo` when known.
+- Produces: `_gh_wrapper_approval_gate` records the `-R`/`--repo` value (it already skips it) and, for `gh api`, the `repos/<owner>/<name>` path. It calls `"${gate}" check "${body_file}" --dir "${PWD}"` and adds `--repo` when known. The destination forms must match what PR B's hook resolves after its final review: `-R`/`--repo` in `o/n`, `github.com/o/n` and `https://github.com/o/n` spellings, a `https://github.com/o/n/...` URL argument (`gh pr comment <url>`), and `GH_REPO` in the environment. Disagreeing candidates block rather than pick one.
 
 - [ ] **Step 1: Write failing cases** with a stub `gate-review.sh` that records its argv: `gh pr create --body-file <f> -R o/n` passes `--repo o/n --dir <pwd>`; without `-R` it passes `--dir` only; a `gh api repos/o/n/issues/1/comments -F body=@<f>` passes `--repo o/n`. Existing cases assert unchanged block and pass behavior.
 - [ ] **Step 2: Run** `bash /Users/andrewrich/Developer/dotfiles/bash/tests/test-gh-wrapper-approval-gate.sh`. Expected: new cases FAIL.
