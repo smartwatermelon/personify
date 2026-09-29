@@ -1,6 +1,6 @@
 ---
 name: personify
-version: 2.0.3
+version: 2.0.4
 description: Draft in your own register, then check the result against a detector before sending, publishing, or shipping it. Use when editing text (emails, docs, comments, PRs, blog drafts, essays) someone else will read. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Submits the result to Pangram and stops when the verdict is not Human, rather than editing toward a score. Also carries the structural rules for GitHub PR descriptions and code comments, which no detector can see. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
@@ -149,14 +149,16 @@ run that fails before a verdict writes neither, so the file cannot be staged
 until a check succeeds.
 
 Report the word count and the estimated cost from the JSON on stdout. At the
-production model this is a fraction of a cent, and printing it makes an
-accidental expensive run visible immediately.
+production model this is five cents per started hundred words, so a 400-word
+text costs about twenty cents, and printing it makes an accidental expensive
+run visible immediately.
 
-**The model is Pangram 3, selected as `default`, and the client picks it without
-being asked.** It agreed with Pangram 4 on every sample tested, at a tenth the
-price. Version 4 is reserved for a contested case and costs ten times as much;
-reach it with `PANGRAM_MODEL=pangram-4` and only when the everyday verdict is
-genuinely in doubt.
+**The model is Pangram 4, pinned by name as `pangram-4`, and the client sends
+it without being asked.** The `default` alias is not used: it pointed at
+Pangram 3.3.2 until that model retired on 2026-09-30, then at Pangram 4 at ten
+times the per-word price for long texts, so the bill would have changed with
+the date. `PANGRAM_MODEL` overrides the pin; a model other than `pangram-4`
+reports no cost estimate, because its price is not known here.
 
 ### There is no edit loop, and do not add one
 

@@ -183,21 +183,24 @@ class VerdictBranchTests(unittest.TestCase):
         replayer = Replayer([fixture_json("ai_short")])
         _, report = self.run_check(raw, replayer)
         payload = replayer.posts()[0][2]
-        self.assertEqual(payload["model"], "default")
+        self.assertEqual(payload["model"], "pangram-4")
         self.assertIs(payload["public_dashboard_link"], False)
-        self.assertEqual(report["model"], "default")
+        self.assertEqual(report["model"], "pangram-4")
+        self.assertAlmostEqual(
+            report["estimated_cost_usd"],
+            0.05 * -(-report["word_count"] // 100),
+            places=6,
+        )
 
-    def test_model_override_is_honored_and_repriced(self):
+    def test_model_override_is_honored_and_reports_no_cost_when_unpriced(self):
         raw = fixture_text("ai_short").encode("utf-8")
         replayer = Replayer([fixture_json("ai_short")])
         _, report = self.run_check(
-            raw, replayer, env={"PANGRAM_MODEL": "pangram-4"}
+            raw, replayer, env={"PANGRAM_MODEL": "default"}
         )
-        self.assertEqual(replayer.posts()[0][2]["model"], "pangram-4")
-        self.assertEqual(report["model"], "pangram-4")
-        self.assertAlmostEqual(
-            report["estimated_cost_usd"], 0.0005 * report["word_count"], places=6
-        )
+        self.assertEqual(replayer.posts()[0][2]["model"], "default")
+        self.assertEqual(report["model"], "default")
+        self.assertIsNone(report["estimated_cost_usd"])
 
     def test_unknown_model_is_rejected_before_submitting(self):
         raw = fixture_text("ai_short").encode("utf-8")
@@ -621,7 +624,7 @@ class HashIdentityTests(unittest.TestCase):
         self.assertEqual(stamp["sha256"], hashlib.sha256(raw).hexdigest())
         self.assertEqual(stamp["task_id"], "task-abc123")
         self.assertEqual(stamp["verdict"], "Human")
-        self.assertEqual(stamp["model"], "default")
+        self.assertEqual(stamp["model"], "pangram-4")
         self.assertEqual(stamp["api_version"], "3.3.2")
         self.assertEqual(stamp["word_count"], report["word_count"])
         self.assertTrue(stamp["timestamp"].endswith("+00:00"))
@@ -958,9 +961,13 @@ class CommandLineTests(unittest.TestCase):
 
 
 class CostReportingTests(unittest.TestCase):
-    def test_v3_and_v4_are_priced_apart(self):
-        self.assertEqual(pangram.estimated_cost("default", 200), 0.01)
-        self.assertEqual(pangram.estimated_cost("pangram-4", 200), 0.1)
+    def test_v4_bills_each_started_hundred_words(self):
+        self.assertEqual(pangram.estimated_cost("pangram-4", 100), 0.05)
+        self.assertEqual(pangram.estimated_cost("pangram-4", 101), 0.1)
+        self.assertEqual(pangram.estimated_cost("pangram-4", 400), 0.2)
+
+    def test_the_default_alias_is_unpriced_because_its_target_moves(self):
+        self.assertIsNone(pangram.estimated_cost("default", 200))
 
     def test_an_unknown_model_reports_no_cost_rather_than_a_wrong_one(self):
         self.assertIsNone(pangram.estimated_cost("pangram-99", 200))

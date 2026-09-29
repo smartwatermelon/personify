@@ -88,7 +88,7 @@ chmod 600 ~/.config/personify/pangram-key
 
 With no key the check exits 5 (unavailable), names the install command, and the text routes to manual review. It never reports an outage as a pass.
 
-Pangram 3 is the production model, selected automatically. Pangram 4 costs ten times as much, agreed with v3 on every sample tested, and is reserved for a contested case: `PANGRAM_MODEL=pangram-4`.
+Pangram 4 is the production model, pinned by name. Pangram bills it at $0.05 per started 100 words, so a 400-word text costs about $0.20, and the check prints the estimate. `PANGRAM_MODEL` overrides the pin.
 
 ## Usage
 
