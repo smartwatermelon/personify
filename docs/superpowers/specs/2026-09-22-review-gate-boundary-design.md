@@ -3,6 +3,10 @@
 Date: 2026-09-22
 Status: approved in conversation, pending written review
 
+Partly superseded by `2026-09-28-gate-routing-rules-design.md`. That design
+replaces this one's destination-based exempt list and its rule that pull
+request descriptions are gated everywhere with an ordered routing table.
+
 ## The problem this solves
 
 Personify 2.0 submits finished text to Pangram and stops on any verdict other
