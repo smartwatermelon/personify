@@ -124,8 +124,7 @@ def validate(root: Path) -> list[str]:
     elif "rules/structure.md" not in text:
         failures.append("SKILL.md must reference rules/structure.md")
 
-    # The length checker ships with the skill and is the one definition of the
-    # caps, so a missing or unreferenced copy leaves the caps unenforceable.
+    # length_check.py is the one definition of the caps; without it they go unenforced.
     length_path = root / "scripts" / "length_check.py"
     if not length_path.exists():
         failures.append("scripts/length_check.py not found")

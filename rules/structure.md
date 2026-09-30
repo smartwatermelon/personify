@@ -23,9 +23,10 @@ contiguous run of comment lines; docstring 280.
 
 Fenced code blocks, docstring `>>>` examples and trailers (`Co-authored-by:`,
 `Closes #N`) do not count. Whitespace runs collapse to one space. Check with
-`python3 scripts/length_check.py --kind <kind> < file` (`commit`, `pr`,
-`issue`, `line-comment`, `pr-comment`, `code-comment`, `docstring`). On exit 1,
-rewrite shorter and run it again: a length count is deterministic, so this loop
+`python3 <skill-dir>/scripts/length_check.py --kind <kind> [--title T] < file`,
+where `<skill-dir>` is this skill's directory and the kind is one of `commit`,
+`pr`, `issue`, `line-comment`, `pr-comment`, `code-comment`, `docstring`. On
+exit 1, rewrite shorter and run it again: a length count is deterministic, so this loop
 converges.
 
 ## GitHub PR descriptions

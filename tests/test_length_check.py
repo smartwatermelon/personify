@@ -7,11 +7,13 @@ python3 -m unittest discover.
 from __future__ import annotations
 
 import importlib.util
+import io
 import pathlib
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "length_check.py"
@@ -71,6 +73,9 @@ class MeasureTests(unittest.TestCase):
 
     def test_single_paragraph_is_not_a_trailer(self):
         self.assertEqual(lc.measure("Note: keep this\n", "pr"), len("Note: keep this"))
+
+    def test_lone_trailer_paragraph_is_counted(self):
+        self.assertEqual(lc.measure("Signed-off-by: x\n", "pr"), len("Signed-off-by: x"))
 
     def test_crlf_same_as_lf(self):
         self.assertEqual(lc.measure("a\r\nb", "pr"), lc.measure("a\nb", "pr"))
@@ -379,3 +384,50 @@ class DiffTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RobustnessTests(unittest.TestCase):
+    def test_parser_recursion_error_yields_no_docstrings(self):
+        src = ["def f():", f"    {TQ}" + "w " * 200 + TQ]
+        diff = diff_of("a.py", src, {2})
+        with mock.patch.object(lc.ast, "parse", side_effect=RecursionError):
+            self.assertEqual(lc.comment_blocks(diff, lambda p: "\n".join(src)), [])
+
+    def test_parser_recursion_error_cli_exits_0(self):
+        code = (
+            "import ast, sys\n"
+            f"sys.path.insert(0, {str(SCRIPT.parent)!r})\n"
+            "import length_check as lc\n"
+            "def boom(*a, **k): raise RecursionError\n"
+            "ast.parse = boom\n"
+            "lc._staged_file = lambda p: 'x = 1\\n'\n"
+            "sys.exit(lc.main(['--diff']))\n"
+        )
+        diff = hunk("a.py", 1, ["x = 1"]).encode()
+        p = subprocess.run([sys.executable, "-c", code], input=diff, capture_output=True, check=False)
+        self.assertEqual((p.returncode, p.stdout), (0, b""))
+
+    def test_unexpected_exception_exits_5(self):
+        with mock.patch.object(lc, "comment_blocks", side_effect=KeyError("boom")):
+            with mock.patch.object(sys, "stdin", mock.Mock(buffer=io.BytesIO(b""))):
+                with mock.patch.object(sys, "stderr", io.StringIO()) as err:
+                    self.assertEqual(lc.main(["--diff"]), 5)
+        self.assertIn("internal error", err.getvalue())
+
+    def test_bytes_literal_hash_lines_are_not_comments(self):
+        src = ["x = b" + TQ, "# " + "w" * 200, "# " + "v" * 200, TQ]
+        self.assertEqual(blocks_of(src, {2, 3}), [])
+
+    def test_quoted_non_ascii_path_is_decoded(self):
+        diff = hunk("a.py", 1, ["# hi"]).replace("+++ b/a.py", '+++ "b/caf\\303\\251.py"')
+        [b] = lc.comment_blocks(diff)
+        self.assertEqual(b.path, "caf\u00e9.py")
+
+    def test_banner_lines_are_not_prose(self):
+        bar = "# " + "=" * 74
+        diff = hunk("a.sh", 2, [bar, "# Setup", bar])
+        [b] = lc.comment_blocks(diff)
+        self.assertEqual(lc.measure(b.text, b.kind), len("Setup"))
+
+    def test_banner_only_run_yields_no_block(self):
+        self.assertEqual(lc.comment_blocks(hunk("a.sh", 2, ["# " + "=" * 300])), [])

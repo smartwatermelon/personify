@@ -267,8 +267,11 @@ Then open PR B.
   - `_gh_wrapper_approval_gate` passes `--kind` to `check`, derived from the `gh` subcommand with the same table as Task 4 (`gh api` rows included). Titles stay unchecked in the wrapper: it covers Andrew's own manual `gh` calls, and the spec puts title caps on the agent path only.
   - `lint-length.sh`: runs `git diff --cached -U0 --no-color | python3 "$(~/.claude/scripts/gate-review.sh personify-path)/scripts/length_check.py" --diff`. Exits with the checker's code. When `personify-path` fails, it prints that message and exits 1 (fail closed; see the open decision below).
   - `pre-commit/config.yaml`: a `repo: local` hook `id: length-caps`, `entry: bash -c '$HOME/.config/git/hooks/lint-length.sh'`, `language: system`, `pass_filenames: false`, `always_run: true`. It reads the staged diff, not file arguments.
+  - `lint-length.sh` exits 0 without checking when `MERGE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD` exists in the git dir (`git rev-parse --absolute-git-dir`).
+  - `lint-length.sh` runs git diff with `--no-ext-diff --src-prefix=a/ --dst-prefix=b/`, so user diff config cannot change the paths.
+  - A documented per-file bypass for license headers and vendored files, designed in this task. `.gitattributes` `-diff` works today, but it also hides the file from `git diff` and `git log -p`.
 
-- [ ] **Step 1: Write failing tests.** lint-length: in a temp repo, a staged 150-char `#` comment fails and names `path:line`; a staged 100-char one passes; an unchanged over-cap comment in a file with other staged edits passes; a missing personify path fails with the message. gh wrapper: each subcommand row passes the expected `--kind`.
+- [ ] **Step 1: Write failing tests.** lint-length: in a temp repo, a staged 150-char `#` comment fails and names `path:line`; a staged 100-char one passes; an unchanged over-cap comment in a file with other staged edits passes; a missing personify path fails with the message. A merge in progress (`MERGE_HEAD`, and likewise the other two) passes unchecked; a user `diff.noprefix` or `diff.external` setting does not change the result; a file under the per-file bypass passes. gh wrapper: each subcommand row passes the expected `--kind`.
 - [ ] **Step 2: Run** `bash bash/tests/test-lint-length.sh` and the gh-wrapper bats file. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the two test files, dotfiles' full suite, and `shellcheck -S info` on both scripts. Expected: all pass, no findings.

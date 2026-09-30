@@ -39,7 +39,7 @@ Never state that a voice guide is "missing," "not configured," or "not found" wi
 
 If a voice guide is found, read it fully and treat it as authoritative. It describes one specific person's writing. Where it conflicts with any rule in this skill, the voice guide wins. The voice guide is more load-bearing in 2.0, not less: with the taxonomy gone, it is the main thing that makes output sound like a person rather than like clean anonymous prose.
 
-Two exceptions, and only these two (the length caps are universal as well, and outrank the voice guide the same way): the GitHub PR descriptions section and the Code comments section are universal rules about the structure of an artifact, not preferences about how a person writes. The voice guide does not override either one. It still sets word choice, rhythm, and bluntness inside those artifacts; it never restores a header, a bullet, a bolded label, a dash, or a comment the code already explains. A voice guide that tries to is stale and should be edited, since a structural rule for a surface is not a voice.
+Three exceptions, and only these three: the length caps, the GitHub PR descriptions section, and the Code comments section are universal rules about the limits and structure of an artifact, not preferences about how a person writes. The voice guide does not override any of them. It still sets word choice, rhythm, and bluntness inside those artifacts; it never restores a header, a bullet, a bolded label, a dash, or a comment the code already explains. A voice guide that tries to is stale and should be edited, since a structural rule for a surface is not a voice.
 
 If no voice guide is found, read `VOICE.example.md` (in this skill's directory) for what one looks like and how to build it. Without a voice guide this skill makes text non-robotic but not distinctive: clean, competent, anonymous. Proceed with the general rules and say so, so the user knows a voice guide is what turns "not obviously AI" into "sounds like them."
 
@@ -53,9 +53,9 @@ below.
 1. No em dashes or en dashes. Replace with a period, comma, or colon. Not
    parentheses.
 2. The voice guide is authoritative. Where it conflicts with anything here or
-   with your own judgment, it wins. Two exceptions: the PR description structure
-   and the code comment rules are universal and outrank it, as do the length
-   caps. All are stated in this file and in `rules/structure.md`.
+   with your own judgment, it wins. Three exceptions: the PR description
+   structure, the code comment rules and the length caps are universal and
+   outrank it. All are stated in this file and in `rules/structure.md`.
 3. Never invent a fact, date, name, number, quotation, or example that was not
    in the source.
 4. Preserve genuine uncertainty. Remove hedging that protects the writer, keep
@@ -127,9 +127,13 @@ Run the checker first, on the file the text will publish from:
 For `commit`, the first line of the file is the title. Exit 0 means every part
 is inside its cap. Exit 1 means at least one part is over, and the output says
 by how much. Rewrite shorter and run it again. Do this yourself, before the
-Pangram check and before anything is staged. Exit 5 means bad usage.
+Pangram check and before anything is staged. Exit 5 means bad usage or an
+internal error.
 
-This is a loop, and The check below forbids an edit loop. The two differ: a
+Before committing, check your own staged comments and docstrings with
+`git diff --cached -U0 --no-color | python3 <skill-dir>/scripts/length_check.py --diff`.
+
+This is a loop, and the section The check, below, forbids an edit loop. The two differ: a
 length count is deterministic, so rewriting toward it converges. The detector
 is neither, so rewriting toward it does not.
 

@@ -2,7 +2,7 @@
 """Check generated GitHub text against its length cap (140 characters per unit).
 
 Usage: length_check.py --kind K [--title T] < text, or --diff < unified-diff.
-Exit 0 ok, 1 over a cap, 5 bad usage.
+Exit 0 ok, 1 over a cap, 5 bad usage or internal error.
 """
 from __future__ import annotations
 
@@ -137,6 +137,16 @@ _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 Segment = list[tuple[int, str]]
 
 
+def _unquote_path(path: str) -> str:
+    """Decode git's C-quoted path (octal escapes for non-ASCII bytes)."""
+    if len(path) < 2 or not (path.startswith('"') and path.endswith('"')):
+        return path
+    try:
+        return ast.literal_eval("b" + path).decode("utf-8", "replace")
+    except (ValueError, SyntaxError):
+        return path[1:-1]
+
+
 def _added_segments(diff: str) -> list[tuple[str, list[Segment]]]:
     """Split a unified diff into (path, segments of consecutive added lines)."""
     files: list[tuple[str, list[Segment]]] = []
@@ -147,7 +157,7 @@ def _added_segments(diff: str) -> list[tuple[str, list[Segment]]]:
         if raw.startswith("diff "):
             segments, in_hunk = None, False
         elif not in_hunk and raw.startswith("+++ "):
-            path = raw[4:].rstrip("\t").strip('"')
+            path = _unquote_path(raw[4:].rstrip("\t"))
             if path == "/dev/null":
                 segments = None
             else:
@@ -199,9 +209,11 @@ def _scan(seg: Segment, ext: str, skip: frozenset[int] = frozenset()) -> list[Bl
     run: list[tuple[int, str]] = []
 
     def flush() -> None:
-        if run:
-            out.append(Block("", run[0][0], "code-comment", "\n".join(t for _, t in run)))
-            run.clear()
+        # Banner lines such as "# ====" carry no letter or digit and are not prose.
+        texts = [t for _, t in run if any(c.isalnum() for c in t)]
+        if texts:
+            out.append(Block("", run[0][0], "code-comment", "\n".join(texts)))
+        run.clear()
 
     i = 0
     while i < len(seg):
@@ -235,12 +247,12 @@ def _python_strings(source: str) -> tuple[list[tuple[int, int]], frozenset[int]]
     """Docstring (first, last) line spans and every line inside a multi-line string."""
     try:
         tree = ast.parse(source)
-    except (SyntaxError, ValueError):
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
         return None
     docs: list[tuple[int, int]] = []
     string_lines: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes)):
             if node.end_lineno and node.end_lineno > node.lineno:
                 string_lines.update(range(node.lineno, node.end_lineno + 1))
         if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -322,6 +334,14 @@ class _Parser(argparse.ArgumentParser):
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except Exception as exc:
+        print(f"length_check: internal error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
+
+def _main(argv: list[str] | None) -> int:
     parser = _Parser(prog="length_check.py", description=__doc__.split("\n")[0])
     parser.add_argument("--kind", choices=sorted(CAPS))
     parser.add_argument("--title")
