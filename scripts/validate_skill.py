@@ -124,6 +124,13 @@ def validate(root: Path) -> list[str]:
     elif "rules/structure.md" not in text:
         failures.append("SKILL.md must reference rules/structure.md")
 
+    # length_check.py is the one definition of the caps; without it they go unenforced.
+    length_path = root / "scripts" / "length_check.py"
+    if not length_path.exists():
+        failures.append("scripts/length_check.py not found")
+    elif "scripts/length_check.py" not in text:
+        failures.append("SKILL.md must reference scripts/length_check.py")
+
     # The guard this validator exists for. A lettered group reference in a
     # tracked file after the taxonomy is gone points at nothing.
     try:

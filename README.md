@@ -27,7 +27,7 @@ Both are universal rules and both outrank a personal `VOICE.md`, which is otherw
 
 ## Installation
 
-The runtime artifact is the skill directory, not `SKILL.md` alone: `scripts/pangram_check.py`, `rules/structure.md`, and `VOICE.example.md` ship with it. Step 0 falls back to `VOICE.example.md` from the skill directory when no voice guide exists.
+The runtime artifact is the skill directory, not `SKILL.md` alone: `scripts/pangram_check.py`, `scripts/length_check.py`, `rules/structure.md`, and `VOICE.example.md` ship with it. Step 0 falls back to `VOICE.example.md` from the skill directory when no voice guide exists.
 
 ### Claude Code plugin
 

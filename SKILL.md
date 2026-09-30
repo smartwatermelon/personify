@@ -1,6 +1,6 @@
 ---
 name: personify
-version: 2.0.4
+version: 2.1.0
 description: Draft in your own register, then check the result against a detector before sending, publishing, or shipping it. Use when editing text (emails, docs, comments, PRs, blog drafts, essays) someone else will read. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Submits the result to Pangram and stops when the verdict is not Human, rather than editing toward a score. Also carries the structural rules for GitHub PR descriptions and code comments, which no detector can see. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
@@ -39,7 +39,7 @@ Never state that a voice guide is "missing," "not configured," or "not found" wi
 
 If a voice guide is found, read it fully and treat it as authoritative. It describes one specific person's writing. Where it conflicts with any rule in this skill, the voice guide wins. The voice guide is more load-bearing in 2.0, not less: with the taxonomy gone, it is the main thing that makes output sound like a person rather than like clean anonymous prose.
 
-Two exceptions, and only these two: the GitHub PR descriptions section and the Code comments section are universal rules about the structure of an artifact, not preferences about how a person writes. The voice guide does not override either one. It still sets word choice, rhythm, and bluntness inside those artifacts; it never restores a header, a bullet, a bolded label, a dash, or a comment the code already explains. A voice guide that tries to is stale and should be edited, since a structural rule for a surface is not a voice.
+Three exceptions, and only these three: the length caps, the GitHub PR descriptions section, and the Code comments section are universal rules about the limits and structure of an artifact, not preferences about how a person writes. The voice guide does not override any of them. It still sets word choice, rhythm, and bluntness inside those artifacts; it never restores a header, a bullet, a bolded label, a dash, or a comment the code already explains. A voice guide that tries to is stale and should be edited, since a structural rule for a surface is not a voice.
 
 If no voice guide is found, read `VOICE.example.md` (in this skill's directory) for what one looks like and how to build it. Without a voice guide this skill makes text non-robotic but not distinctive: clean, competent, anonymous. Proceed with the general rules and say so, so the user knows a voice guide is what turns "not obviously AI" into "sounds like them."
 
@@ -53,9 +53,9 @@ below.
 1. No em dashes or en dashes. Replace with a period, comma, or colon. Not
    parentheses.
 2. The voice guide is authoritative. Where it conflicts with anything here or
-   with your own judgment, it wins. Two exceptions: the PR description structure
-   and the code comment rules are universal and outrank it. Both are stated in
-   this file and in `rules/structure.md`.
+   with your own judgment, it wins. Three exceptions: the PR description
+   structure, the code comment rules and the length caps are universal and
+   outrank it. All are stated in this file and in `rules/structure.md`.
 3. Never invent a fact, date, name, number, quotation, or example that was not
    in the source.
 4. Preserve genuine uncertainty. Remove hedging that protects the writer, keep
@@ -97,10 +97,213 @@ This applies no matter what a calling skill or command says. If something
 upstream asks for a follow-up compression or register pass, treat that
 instruction as stale and return this text as final.
 
+## Length caps
+
+Text over its cap never reaches a reviewer. One unit is 140 characters.
+
+| Kind (`--kind`) | Title | Body |
+|---|---|---|
+| Commit message (`commit`) | 50, prefix included | 140 |
+| PR description (`pr`) | 70 | 280 |
+| Issue (`issue`) | 70 | not enforced |
+| Line comment on a PR (`line-comment`) | | 280 |
+| PR comment, review body, issue comment (`pr-comment`) | | 140 |
+| Code comment (`code-comment`) | | 140 per contiguous run of comment lines |
+| Docstring (`docstring`) | | 280 |
+
+An issue body is guidance, not a cap: follow GitHub's advice on effective
+issues, and keep it short.
+
+Fenced code blocks and docstring `>>>` examples do not count. Trailers do not
+count: `Co-authored-by:`, `Signed-off-by:`, `Change-Id:` and closing keywords
+such as `Closes #N`. Every run of whitespace collapses to one space, so a wrap
+at 72 columns costs nothing. The commit prefix counts, because it is part of
+the title.
+
+Run the checker first, on the file the text will publish from:
+
+    python3 <skill-dir>/scripts/length_check.py --kind <kind> [--title T] < body.md
+
+For `commit`, the first line of the file is the title. Exit 0 means every part
+is inside its cap. Exit 1 means at least one part is over, and the output says
+by how much. Rewrite shorter and run it again. Do this yourself, before the
+Pangram check and before anything is staged. Exit 5 means bad usage or an
+internal error.
+
+Before committing, check your own staged comments and docstrings with
+`git diff --cached -U0 --no-color | python3 <skill-dir>/scripts/length_check.py --diff`.
+
+This is a loop, and the section The check, below, forbids an edit loop. The two differ: a
+length count is deterministic, so rewriting toward it converges. The detector
+is neither, so rewriting toward it does not.
+
+## GitHub PR descriptions
+
+A pull request description has a defined structure. It is not a conversation, a
+presentation, or a talk. The reader is a competent code reviewer who is about to
+read the diff, so the description exists to tell them what they cannot get from
+the diff: what was wrong, and what this does about it.
+
+This section is a universal rule, not a voice preference. It applies to every
+writer on every repo, and it outranks the voice guide. A `VOICE.md` never
+reopens a header, a bullet, a bolded label, or a dash on this surface. Step 0's
+"the voice guide wins" and hard rule 2 both carve this section out by name. The
+voice guide still sets word choice, sentence rhythm, and how blunt the sentences
+are; it does not set the structure.
+
+**The detector cannot see any of this.** Pangram scores how the prose reads, so
+it will pass a description carrying ceremonial headers and a merge-readiness
+sign-off as long as the sentences read human. Structure is enforced here or
+nowhere. `rules/structure.md` carries the same rules in compact form for a caller
+that needs them without the rest of this file.
+
+**Hard format.** No headers. No bold. No bullets. No numbered lists. No em
+dashes or en dashes. Plain paragraphs only. This overrides any general
+preference for using a list when the content is a list: on this surface there
+are no lists.
+
+**Four parts, in this order, as plain prose:**
+
+1. The problem, stated plainly: when I do X, I get Y. I should get Z.
+2. The evidence, only when it is not already obvious from context. Show it or
+   link it.
+3. The solution, in a brief sum-up that assumes the reader will read the code.
+4. References, only when something had to be consulted that is not obvious and
+   not already part of the codebase.
+
+Do not number or label the parts in the output. They are the order the prose
+runs in, not a template to fill. Parts 2 and 4 get skipped when they do not
+apply, and skipping them is the normal case. A one-line change gets one line:
+the problem and the fix in a sentence. The whole description stays inside the
+280-character cap in Length caps.
+
+Two rules that survive from the general technical guidance. Never say how: the
+diff is the how, so a description that restates what the code already shows gets
+cut. And no inflated stakes on a routine change: "grants the service account the
+permissions it needs" beats "a critical step in modernizing our access
+architecture."
+
+Three things that look like facts and are not, and all three get cut whatever
+the source says. A passing test suite: CI reports it, so "the full suite passes
+locally" carries nothing. A check that was not run: "I didn't test against
+staging," "no integration tests apply here," "no plan/apply run." A cosmetic
+part of the diff: a formatting cleanup, a rename, an import reorder, which the
+reviewer sees in the diff and did not need announced. Part 3 covers what the
+change does, not an inventory of the diff and not a pre-emptive defense of it.
+If a reviewer wants to know whether you tested something, they will ask, and
+answering then is cheap. The exception is a real caveat a reader acts on: "this
+is untested against Postgres 14, which is what staging runs" names a risk, where
+"I didn't test against staging" only names an absence.
+
+Exact output stays exact. Terminal output, error messages, and diffs go in a
+code block verbatim, never paraphrased. A code block is not formatting ceremony
+and the no-headers rule does not touch it. Part 2 is usually where it lands.
+Verbatim also means the Code comments section below does not reach inside it: a
+snippet quoted in a description is evidence, not comments being edited.
+
+**Never invent the problem statement.** Part 1 is the part a padded description
+most often lacks, and it is the one part that cannot be derived from the diff or
+from the rest of the text. If the source does not carry it, say so and ask, per
+hard rule 3. An agent calling this skill while opening a PR has the branch, the
+diff, and the issue, so it should supply the problem statement in the input
+rather than leave the skill to guess at one.
+
+Worked example, a small IAM permissions change:
+
+Before (unearned headers, a rundown of checks nobody asked for, no problem
+statement):
+
+> ## Security-critical access delta
+>
+> This grants the `deploy-bot` service account `sts:AssumeRole` on the `ci-release` role and adds it to that role's trust policy. This is a narrow, existing-role grant to a single named principal, not a new role or broadened trust.
+>
+> ## Validation
+>
+> No `modules/iam_role` changes, so no test suite applies. No policy coverage applies to this path, so no targeted policy-check run. Reviewed the diff directly; no plan/apply run, per repo guardrails.
+>
+> This PR is ready to merge upon approval.
+
+The source never says what was broken, so the rewrite cannot state it. Asking
+for it is the correct move, and the answer here was that the release pipeline
+fails at the assume-role step.
+
+After:
+
+> When the release pipeline runs, it fails at the assume-role step. It should be able to assume `ci-release`.
+>
+> ```
+> AccessDenied: User: arn:aws:sts::...:assumed-role/deploy-bot is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::...:role/ci-release
+> ```
+>
+> Gives `deploy-bot` assume-role on `ci-release` and adds it to that role's trust policy. Existing role, one named principal. Nothing manual after merge.
+
+Every fact in the original survives. What is cut: both headers, the enumeration
+of checks that do not apply, and the merge-readiness sign-off. What is added is
+the problem statement and the error it produces, which came from asking rather
+than from guessing. The parenthetical aside became a clause carrying the same
+fact, since the construction is what goes and not the information. Two short
+clauses got connected rather than stacked, because compression is not a license
+for a row of bare declaratives.
+
+The first person is optional here and only here: a description whose subject is
+the diff itself can lead with the verb, since the PR metadata names the author.
+The moment it carries a judgment ("I'd rather do X," "I'm not sure this covers
+Y"), hard rule 7 applies in full and the "I" goes back in.
+
+## Code comments
+
+Also a universal rule that outranks the voice guide, on the same terms as the PR
+description section above, and equally invisible to the detector.
+
+The ratio of comment lines to code lines is never more than 1:1, and should be
+far lower. At most one comment per logical block, and only where an informed
+reading of the code by a competent reviewer would not already tell them. No
+explanations, no conversation, no links, and no "because X and Y, then Z, and
+also, and also."
+
+One comment means one, not one physical line: a comment that wraps to a second
+line to stay inside the line limit is still one comment. The cap is 140
+characters for the whole contiguous run of comment lines. What the rule forbids
+is a second comment on the same block and a comment over the cap. If one
+comment cannot say its thing in 140 characters, the thing is probably two
+facts, and one of them is likely already in the code.
+
+What a comment is for is the thing the code cannot say: why this way rather than
+the obvious way, a constraint that is not visible locally, a workaround and what
+it works around. A comment that narrates the line under it is the tell. So is a
+comment that argues with the reader.
+
+Before:
+
+    # Increment the retry counter by one so that we can keep track of how many
+    # times we have attempted this request. This is important because we need
+    # to avoid retrying forever, and also because the backoff calculation
+    # below depends on this value being accurate.
+    retries += 1
+    # Calculate the backoff delay using exponential backoff
+    delay = base * (2 ** retries)
+
+After:
+
+    retries += 1
+    delay = base * (2 ** retries)
+
+Both comments went because the code says it. Six comment lines against two code
+lines also fails the ratio on its own. Had the base been an odd number chosen to
+dodge a thundering-herd problem, that would be the one line worth keeping, since
+no reading of the code recovers it.
+
+Docstrings and generated API documentation are not code comments for this rule.
+They are reference material and take the neutral register under Technical
+content above. The 1:1 ratio does not apply to them, but the 280-character
+docstring cap in Length caps does.
+
 ## The check
 
-After the rewrite, submit the result to Pangram and let the verdict decide
-whether it goes out.
+After the rewrite, and after it is inside its length cap, submit the result to
+Pangram and let the verdict decide whether it goes out. Pangram runs only on
+text over the 40-word floor. Under the caps that is mostly PR descriptions:
+most commit bodies and comments fall below it and skip.
 
 The client is `scripts/pangram_check.py` in this skill's own directory, the one
 holding this SKILL.md, never the user's working directory. The plugin installs
@@ -264,164 +467,6 @@ there is no actor to name, so rule 7 and the first-person default above do not a
 Everything else technical follows the voice guide. Even in neutral register, cut
 words rather than content: keep every fact, caveat, and detail the original
 carries, in fewer words.
-
-## GitHub PR descriptions
-
-A pull request description has a defined structure. It is not a conversation, a
-presentation, or a talk. The reader is a competent code reviewer who is about to
-read the diff, so the description exists to tell them what they cannot get from
-the diff: what was wrong, and what this does about it.
-
-This section is a universal rule, not a voice preference. It applies to every
-writer on every repo, and it outranks the voice guide. A `VOICE.md` never
-reopens a header, a bullet, a bolded label, or a dash on this surface. Step 0's
-"the voice guide wins" and hard rule 2 both carve this section out by name. The
-voice guide still sets word choice, sentence rhythm, and how blunt the sentences
-are; it does not set the structure.
-
-**The detector cannot see any of this.** Pangram scores how the prose reads, so
-it will pass a description carrying ceremonial headers and a merge-readiness
-sign-off as long as the sentences read human. Structure is enforced here or
-nowhere. `rules/structure.md` carries the same rules in compact form for a caller
-that needs them without the rest of this file.
-
-**Hard format.** No headers. No bold. No bullets. No numbered lists. No em
-dashes or en dashes. Plain paragraphs only. This overrides any general
-preference for using a list when the content is a list: on this surface there
-are no lists.
-
-**Four parts, in this order, as plain prose:**
-
-1. The problem, stated plainly: when I do X, I get Y. I should get Z.
-2. The evidence, only when it is not already obvious from context. Show it or
-   link it.
-3. The solution, in a brief sum-up that assumes the reader will read the code.
-4. References, only when something had to be consulted that is not obvious and
-   not already part of the codebase.
-
-Do not number or label the parts in the output. They are the order the prose
-runs in, not a template to fill. Parts 2 and 4 get skipped when they do not
-apply, and skipping them is the normal case. A one-line change gets one line:
-the problem and the fix in a sentence.
-
-Two rules that survive from the general technical guidance. Never say how: the
-diff is the how, so a description that restates what the code already shows gets
-cut. And no inflated stakes on a routine change: "grants the service account the
-permissions it needs" beats "a critical step in modernizing our access
-architecture."
-
-Three things that look like facts and are not, and all three get cut whatever
-the source says. A passing test suite: CI reports it, so "the full suite passes
-locally" carries nothing. A check that was not run: "I didn't test against
-staging," "no integration tests apply here," "no plan/apply run." A cosmetic
-part of the diff: a formatting cleanup, a rename, an import reorder, which the
-reviewer sees in the diff and did not need announced. Part 3 covers what the
-change does, not an inventory of the diff and not a pre-emptive defense of it.
-If a reviewer wants to know whether you tested something, they will ask, and
-answering then is cheap. The exception is a real caveat a reader acts on: "this
-is untested against Postgres 14, which is what staging runs" names a risk, where
-"I didn't test against staging" only names an absence.
-
-Exact output stays exact. Terminal output, error messages, and diffs go in a
-code block verbatim, never paraphrased. A code block is not formatting ceremony
-and the no-headers rule does not touch it. Part 2 is usually where it lands.
-Verbatim also means the Code comments section below does not reach inside it: a
-snippet quoted in a description is evidence, not comments being edited.
-
-**Never invent the problem statement.** Part 1 is the part a padded description
-most often lacks, and it is the one part that cannot be derived from the diff or
-from the rest of the text. If the source does not carry it, say so and ask, per
-hard rule 3. An agent calling this skill while opening a PR has the branch, the
-diff, and the issue, so it should supply the problem statement in the input
-rather than leave the skill to guess at one.
-
-Worked example, a small IAM permissions change:
-
-Before (unearned headers, a rundown of checks nobody asked for, no problem
-statement):
-
-> ## Security-critical access delta
->
-> This grants the `deploy-bot` service account `sts:AssumeRole` on the `ci-release` role and adds it to that role's trust policy. This is a narrow, existing-role grant to a single named principal, not a new role or broadened trust.
->
-> ## Validation
->
-> No `modules/iam_role` changes, so no test suite applies. No policy coverage applies to this path, so no targeted policy-check run. Reviewed the diff directly; no plan/apply run, per repo guardrails.
->
-> This PR is ready to merge upon approval.
-
-The source never says what was broken, so the rewrite cannot state it. Asking
-for it is the correct move, and the answer here was that the release pipeline
-fails at the assume-role step.
-
-After:
-
-> When the release pipeline runs, it fails at the assume-role step. It should be able to assume `ci-release`.
->
-> ```
-> AccessDenied: User: arn:aws:sts::...:assumed-role/deploy-bot is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::...:role/ci-release
-> ```
->
-> Gives `deploy-bot` assume-role on `ci-release` and adds it to that role's trust policy. Existing role, one named principal. Nothing manual after merge.
-
-Every fact in the original survives. What is cut: both headers, the enumeration
-of checks that do not apply, and the merge-readiness sign-off. What is added is
-the problem statement and the error it produces, which came from asking rather
-than from guessing. The parenthetical aside became a clause carrying the same
-fact, since the construction is what goes and not the information. Two short
-clauses got connected rather than stacked, because compression is not a license
-for a row of bare declaratives.
-
-The first person is optional here and only here: a description whose subject is
-the diff itself can lead with the verb, since the PR metadata names the author.
-The moment it carries a judgment ("I'd rather do X," "I'm not sure this covers
-Y"), hard rule 7 applies in full and the "I" goes back in.
-
-## Code comments
-
-Also a universal rule that outranks the voice guide, on the same terms as the PR
-description section above, and equally invisible to the detector.
-
-The ratio of comment lines to code lines is never more than 1:1, and should be
-far lower. At most one comment per logical block, and only where an informed
-reading of the code by a competent reviewer would not already tell them. No
-explanations, no conversation, no links, and no "because X and Y, then Z, and
-also, and also."
-
-One comment means one, not one physical line: a comment that wraps to a second
-line to stay inside the line limit is still one comment. What the rule forbids
-is a second comment on the same block and a comment that runs to a paragraph.
-If one comment needs three lines to say its thing, the thing is probably two
-facts, and one of them is likely already in the code.
-
-What a comment is for is the thing the code cannot say: why this way rather than
-the obvious way, a constraint that is not visible locally, a workaround and what
-it works around. A comment that narrates the line under it is the tell. So is a
-comment that argues with the reader.
-
-Before:
-
-    # Increment the retry counter by one so that we can keep track of how many
-    # times we have attempted this request. This is important because we need
-    # to avoid retrying forever, and also because the backoff calculation
-    # below depends on this value being accurate.
-    retries += 1
-    # Calculate the backoff delay using exponential backoff
-    delay = base * (2 ** retries)
-
-After:
-
-    retries += 1
-    delay = base * (2 ** retries)
-
-Both comments went because the code says it. Six comment lines against two code
-lines also fails the ratio on its own. Had the base been an odd number chosen to
-dodge a thundering-herd problem, that would be the one line worth keeping, since
-no reading of the code recovers it.
-
-Docstrings and generated API documentation are not code comments for this rule.
-They are reference material and take the neutral register under Technical
-content above. The 1:1 ratio does not apply to them.
 
 ## Provenance
 
