@@ -60,6 +60,14 @@ class MeasureTests(unittest.TestCase):
     def test_advances_is_not_a_trailer(self):
         self.assertEqual(lc.measure("Body.\n\nAdvances #106\n", "pr"), len("Body. Advances #106"))
 
+    def test_prose_label_is_not_a_trailer(self):
+        body = "Body.\n\nWhy: " + "w" * 200
+        self.assertEqual(lc.measure(body, "pr"), len("Body. Why: " + "w" * 200))
+
+    def test_hyphenated_trailers_not_counted(self):
+        body = "Body.\n\nSigned-off-by: A <a@b.c>\nChange-Id: I123\n"
+        self.assertEqual(lc.measure(body, "pr"), 5)
+
     def test_single_paragraph_is_not_a_trailer(self):
         self.assertEqual(lc.measure("Note: keep this\n", "pr"), len("Note: keep this"))
 

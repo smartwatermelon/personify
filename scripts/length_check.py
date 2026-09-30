@@ -11,8 +11,9 @@ per part:
     <kind> <part>: <count>/<cap> over by <n>
 
 Counting: fenced code blocks are dropped (docstrings also drop `>>>` blocks),
-so is a final trailer paragraph, every whitespace run becomes one space, and
-the result is trimmed and counted in code points.
+so is a final trailer paragraph (hyphenated git trailers such as
+Signed-off-by, or closing keywords such as Closes #1). Every whitespace run
+becomes one space, and the result is trimmed and counted in code points.
 
 Exit codes:
     0  every part is within its cap
@@ -42,8 +43,9 @@ EXIT_OVER = 1
 EXIT_USAGE = 5
 
 _FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+# Git trailers need a hyphenated token, so prose like "Why: ..." still counts.
 _TRAILER = re.compile(
-    r"^[A-Za-z][A-Za-z0-9-]*: \S"
+    r"^[A-Za-z][A-Za-z0-9]*(-[A-Za-z0-9]+)+: \S"
     r"|^(close[sd]?|fix(e[sd])?|resolve[sd]?) ([\w.-]+/[\w.-]+)?#\d+$",
     re.IGNORECASE,
 )
