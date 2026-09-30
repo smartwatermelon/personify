@@ -6,6 +6,7 @@ Reads the text as UTF-8 bytes on stdin, normalizes CRLF, and prints one line
 per part:
 
     python3 length_check.py --kind pr --title "Add caps" < body.md
+    git diff --cached -U0 --no-color | python3 length_check.py --diff
 
     <kind> <part>: <count>/<cap> ok
     <kind> <part>: <count>/<cap> over by <n>
@@ -15,15 +16,21 @@ so is a final trailer paragraph (hyphenated git trailers such as
 Signed-off-by, or closing keywords such as Closes #1). Every whitespace run
 becomes one space, and the result is trimmed and counted in code points.
 
+--diff reads a unified diff and checks each newly added comment run or
+docstring (kinds code-comment and docstring). Only added lines count. It
+prints one line per block over its cap: <path>:<line>: <kind> <n>/<cap> over by <n>.
+
 Exit codes:
     0  every part is within its cap
     1  at least one part is over
-    5  bad usage: unknown kind, --title with commit, undecodable stdin
+    5  bad usage: unknown kind, --title with commit, --diff with --kind or
+       --title, undecodable stdin (not in --diff mode)
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from typing import NamedTuple
@@ -132,6 +139,140 @@ def check_text(kind: str, body: str, title: str | None = None) -> list[Result]:
     return results
 
 
+class Block(NamedTuple):
+    path: str
+    line: int
+    kind: str
+    text: str
+
+
+_HASH_EXTS = {".py", ".sh", ".bash", ".rb", ".yaml", ".yml", ".toml"}
+_SLASH_EXTS = {
+    ".js", ".jsx", ".ts", ".tsx", ".go", ".rs", ".swift",
+    ".c", ".h", ".cc", ".cpp", ".hpp", ".java", ".kt",
+}  # fmt: skip
+_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+_TRIPLE = re.compile(r"^[rRuUbBfF]{0,2}(\"{3}|'{3})")
+
+Segment = list[tuple[int, str]]
+
+
+def _added_segments(diff: str) -> list[tuple[str, list[Segment]]]:
+    """Split a unified diff into (path, segments of consecutive added lines)."""
+    files: list[tuple[str, list[Segment]]] = []
+    segments: list[Segment] | None = None
+    in_hunk = False
+    lineno = 0
+    for raw in diff.replace("\r\n", "\n").split("\n"):
+        if raw.startswith("diff "):
+            segments, in_hunk = None, False
+        elif not in_hunk and raw.startswith("+++ "):
+            path = raw[4:].rstrip("\t").strip('"')
+            if path == "/dev/null":
+                segments = None
+            else:
+                segments = []
+                # Also covers diff.mnemonicPrefix (i/, w/, c/).
+                files.append((re.sub(r"^[abciwo]/", "", path), segments))
+        elif (m := _HUNK.match(raw)) and segments is not None:
+            in_hunk, lineno = True, int(m.group(1))
+            segments.append([])
+        elif in_hunk and segments is not None:
+            if raw.startswith("+"):
+                segments[-1].append((lineno, raw[1:]))
+                lineno += 1
+            elif raw.startswith("\\"):
+                continue
+            elif raw.startswith("-"):
+                segments.append([])
+            else:
+                segments.append([])
+                lineno += 1
+    return files
+
+
+def _take_quoted(seg: Segment, i: int, start: int, delim: str) -> tuple[str, int]:
+    lines: list[str] = []
+    j = i
+    while j < len(seg):
+        s = seg[j][1].strip()
+        if j == i:
+            s = s[start:]
+        if delim in s:
+            lines.append(s.split(delim)[0])
+            return "\n".join(lines), j + 1
+        lines.append(s)
+        j += 1
+    return "\n".join(lines), j
+
+
+def _take_block(seg: Segment, i: int, opener: str) -> tuple[str, int]:
+    lines: list[str] = []
+    j = i
+    while j < len(seg):
+        s = seg[j][1].strip()
+        if j == i:
+            s = s[len(opener):]
+        closed = "*/" in s
+        if closed:
+            s = s[: s.index("*/")]
+        lines.append(s if j == i else re.sub(r"^\*+\s?", "", s))
+        j += 1
+        if closed:
+            break
+    return "\n".join(lines), j
+
+
+def _scan(seg: Segment, ext: str) -> list[Block]:
+    """Blocks in one run of added lines; path is filled in by the caller."""
+    hash_family = ext in _HASH_EXTS or ext == ""
+    marker = "#" if hash_family else "//"
+    out: list[Block] = []
+    run: list[tuple[int, str]] = []
+
+    def flush() -> None:
+        if run:
+            out.append(Block("", run[0][0], "code-comment", "\n".join(t for _, t in run)))
+            run.clear()
+
+    i = 0
+    while i < len(seg):
+        no, s = seg[i][0], seg[i][1].strip()
+        if s.startswith(marker) and not s.startswith("#!"):
+            run.append((no, re.sub(r"^" + re.escape(marker[0]) + r"+\s?", "", s)))
+            i += 1
+            continue
+        flush()
+        kind, text, nxt = "", "", i + 1
+        if ext == ".py" and (m := _TRIPLE.match(s)):
+            kind = "docstring"
+            text, nxt = _take_quoted(seg, i, m.end(), m.group(1))
+        elif not hash_family and s.startswith("/*"):
+            doc = s.startswith("/**") and not s.startswith("/**/")
+            kind = "docstring" if doc else "code-comment"
+            text, nxt = _take_block(seg, i, "/**" if doc else "/*")
+        if kind:
+            out.append(Block("", no, kind, text))
+        i = nxt
+    flush()
+    return out
+
+
+def comment_blocks(diff: str) -> list[Block]:
+    """Code comments and docstrings that a unified diff adds."""
+    blocks: list[Block] = []
+    for path, segments in _added_segments(diff):
+        ext = os.path.splitext(path)[1]
+        first = next((seg[0][1] for seg in segments if seg), "")
+        if ext == "" and not first.startswith("#!"):
+            continue
+        if ext not in _HASH_EXTS | _SLASH_EXTS | {""}:
+            continue
+        for seg in segments:
+            blocks.extend(b._replace(path=path) for b in _scan(seg, ext))
+    return blocks
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message: str):
         self.print_usage(sys.stderr)
@@ -141,9 +282,26 @@ class _Parser(argparse.ArgumentParser):
 
 def main(argv: list[str] | None = None) -> int:
     parser = _Parser(prog="length_check.py", description=__doc__.split("\n")[0])
-    parser.add_argument("--kind", required=True, choices=sorted(CAPS))
+    parser.add_argument("--kind", choices=sorted(CAPS))
     parser.add_argument("--title")
+    parser.add_argument("--diff", action="store_true")
     args = parser.parse_args(argv)
+    if args.diff and (args.kind or args.title is not None):
+        parser.error("--diff cannot be combined with --kind or --title")
+    if not args.diff and not args.kind:
+        parser.error("--kind is required unless --diff is given")
+
+    if args.diff:
+        # A commit must not fail because some file in the diff is not UTF-8.
+        diff = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        over = False
+        for b in comment_blocks(diff):
+            cap = CAPS[b.kind][1]
+            count = measure(b.text, b.kind)
+            if cap is not None and count > cap:
+                over = True
+                print(f"{b.path}:{b.line}: {b.kind} {count}/{cap} over by {count - cap}")
+        return EXIT_OVER if over else EXIT_OK
 
     try:
         text = sys.stdin.buffer.read().decode("utf-8")

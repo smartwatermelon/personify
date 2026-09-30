@@ -162,5 +162,148 @@ class CliTests(unittest.TestCase):
         self.assertEqual(run_cli(["--kind", "pr"], b"\xff\xfe").returncode, 5)
 
 
+def hunk(path, start, lines, deleted=0):
+    """Build a -U0 unified diff that adds `lines` to `path` at line `start`."""
+    out = [
+        f"diff --git a/{path} b/{path}",
+        "index 1111111..2222222 100644",
+        f"--- a/{path}",
+        f"+++ b/{path}",
+        f"@@ -{start},{deleted} +{start},{len(lines)} @@",
+    ]
+    out += ["-old"] * deleted
+    out += ["+" + line for line in lines]
+    return "\n".join(out) + "\n"
+
+
+TQ = '"' * 3
+
+
+class DiffTests(unittest.TestCase):
+    def test_added_comment_run_over_cap_fails(self):
+        diff = hunk("a.py", 10, ["# " + "w" * 141])
+        [b] = lc.comment_blocks(diff)
+        self.assertEqual((b.path, b.line, b.kind), ("a.py", 10, "code-comment"))
+        self.assertEqual(lc.measure(b.text, b.kind), 141)
+
+    def test_extension_of_existing_run_checks_only_added_line(self):
+        diff = hunk("a.py", 5, ["# more"])
+        self.assertEqual([b.text for b in lc.comment_blocks(diff)], ["more"])
+
+    def test_two_runs_split_by_code_are_two_blocks(self):
+        diff = hunk("a.py", 1, ["# one", "x = 1", "# two", "# three"])
+        blocks = lc.comment_blocks(diff)
+        self.assertEqual([(b.line, b.text) for b in blocks], [(1, "one"), (3, "two\nthree")])
+
+    def test_runs_split_by_deleted_line_are_two_blocks(self):
+        diff = (
+            "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+            "@@ -1,0 +1,1 @@\n+# one\n-gone\n+# two\n"
+        )
+        self.assertEqual([b.text for b in lc.comment_blocks(diff)], ["one", "two"])
+
+    def test_python_docstring_is_docstring_kind(self):
+        diff = hunk("a.py", 3, [f"    {TQ}Summary.", "", f"    More.{TQ}", "# tail"])
+        docs = [b for b in lc.comment_blocks(diff) if b.kind == "docstring"]
+        self.assertEqual(len(docs), 1)
+        self.assertEqual((docs[0].line, docs[0].text.split()), (3, ["Summary.", "More."]))
+        self.assertEqual(lc.measure(docs[0].text, "docstring"), len("Summary. More."))
+
+    def test_one_line_docstring(self):
+        sq = "'" * 3
+        [b] = lc.comment_blocks(hunk("a.py", 2, [f"{sq}Short.{sq}"]))
+        self.assertEqual((b.kind, b.text), ("docstring", "Short."))
+
+    def test_docstring_doctest_and_fence_collapse_like_task_1(self):
+        body = ["Add.", "", ">>> add(1, 2)", "3", "```", "y" * 500, "```", TQ]
+        [b] = lc.comment_blocks(hunk("a.py", 1, [TQ + line for line in body[:1]] + body[1:]))
+        self.assertEqual(lc.measure(b.text, b.kind), 4)
+
+    def test_jsdoc_is_docstring_and_block_comment_is_code_comment(self):
+        diff = hunk("a.ts", 1, ["/**", " * Doc line.", " */", "/* plain", " * note */", "// eol"])
+        got = [(b.kind, b.text.split()) for b in lc.comment_blocks(diff)]
+        self.assertEqual(
+            got,
+            [
+                ("docstring", ["Doc", "line."]),
+                ("code-comment", ["plain", "note"]),
+                ("code-comment", ["eol"]),
+            ],
+        )
+
+    def test_hash_inside_js_string_is_not_a_comment(self):
+        diff = hunk("a.js", 1, ['const s = "# not a comment";', "# also not"])
+        self.assertEqual(lc.comment_blocks(diff), [])
+
+    def test_shebang_extensionless_uses_hash_family(self):
+        diff = hunk("bin/tool", 1, ["#!/bin/sh", "# note"])
+        self.assertEqual([b.text for b in lc.comment_blocks(diff)], ["note"])
+
+    def test_extensionless_without_shebang_skipped(self):
+        self.assertEqual(lc.comment_blocks(hunk("Makefile", 1, ["# note"])), [])
+
+    def test_unknown_extension_skipped(self):
+        self.assertEqual(lc.comment_blocks(hunk("a.md", 1, ["# Heading"])), [])
+
+    def test_deleted_lines_ignored(self):
+        diff = (
+            "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+            "@@ -1,2 +0,0 @@\n-# " + "w" * 300 + "\n-# more\n"
+        )
+        self.assertEqual(lc.comment_blocks(diff), [])
+
+    def test_deleted_file_and_binary_and_noise_skipped(self):
+        diff = (
+            "diff --git a/old.py b/old.py\ndeleted file mode 100644\nindex 1..0\n"
+            "--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-# gone\n"
+            "diff --git a/img.png b/img.png\nnew file mode 100644\n"
+            "Binary files /dev/null and b/img.png differ\n"
+            "diff --git a/r.py b/r.py\nsimilarity index 100%\n"
+            "rename from r.py\nrename to r.py\n"
+            "diff --git a/n.py b/n.py\n--- a/n.py\n+++ b/n.py\n"
+            "@@ -3 +3 @@\n-x\n\\ No newline at end of file\n+# kept\n"
+            "\\ No newline at end of file\n"
+        )
+        got = [(b.path, b.line, b.text) for b in lc.comment_blocks(diff)]
+        self.assertEqual(got, [("n.py", 3, "kept")])
+
+    def test_hunk_header_without_count(self):
+        diff = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -7 +9 @@ def f():\n+# hi\n"
+        [b] = lc.comment_blocks(diff)
+        self.assertEqual(b.line, 9)
+
+    def test_mnemonic_prefix_stripped_from_path(self):
+        diff = hunk("a.py", 1, ["# hi"]).replace("b/a.py", "w/a.py").replace("a/a.py", "i/a.py")
+        self.assertEqual([b.path for b in lc.comment_blocks(diff)], ["a.py"])
+
+    def test_added_line_starting_with_plus_plus_is_content(self):
+        diff = hunk("a.py", 1, ["++ x", "# c"])
+        self.assertEqual([b.text for b in lc.comment_blocks(diff)], ["c"])
+
+    def test_cli_diff_exit_codes(self):
+        bad = hunk("a.py", 10, ["# " + "w" * 141]).encode()
+        p = run_cli(["--diff"], bad)
+        self.assertEqual(p.returncode, 1)
+        self.assertEqual(p.stdout.decode(), "a.py:10: code-comment 141/140 over by 1\n")
+        ok = run_cli(["--diff"], hunk("a.py", 10, ["# " + "w" * 140]).encode())
+        self.assertEqual((ok.returncode, ok.stdout), (0, b""))
+        self.assertEqual(run_cli(["--diff"], b"").returncode, 0)
+
+    def test_cli_diff_docstring_cap_is_280(self):
+        diff = hunk("a.py", 1, [TQ + "w" * 280 + TQ]).encode()
+        self.assertEqual(run_cli(["--diff"], diff).returncode, 0)
+        diff = hunk("a.py", 1, [TQ + "w" * 281 + TQ]).encode()
+        p = run_cli(["--diff"], diff)
+        self.assertEqual(p.stdout.decode(), "a.py:1: docstring 281/280 over by 1\n")
+
+    def test_cli_diff_with_kind_or_title_exit_5(self):
+        self.assertEqual(run_cli(["--diff", "--kind", "pr"], b"").returncode, 5)
+        self.assertEqual(run_cli(["--diff", "--title", "t"], b"").returncode, 5)
+
+    def test_cli_diff_survives_non_utf8(self):
+        diff = hunk("a.py", 1, ["# ok"]).encode() + b"+\xff\n"
+        self.assertEqual(run_cli(["--diff"], diff).returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
