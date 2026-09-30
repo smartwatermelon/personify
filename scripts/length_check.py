@@ -1,38 +1,18 @@
 #!/usr/bin/env python3
-"""Check generated GitHub text against its length cap.
+"""Check generated GitHub text against its length cap (140 characters per unit).
 
-One unit is 140 characters. This file is the single place the caps live.
-Reads the text as UTF-8 bytes on stdin, normalizes CRLF, and prints one line
-per part:
-
-    python3 length_check.py --kind pr --title "Add caps" < body.md
-    git diff --cached -U0 --no-color | python3 length_check.py --diff
-
-    <kind> <part>: <count>/<cap> ok
-    <kind> <part>: <count>/<cap> over by <n>
-
-Counting: fenced code blocks are dropped (docstrings also drop `>>>` blocks),
-so is a final trailer paragraph (hyphenated git trailers such as
-Signed-off-by, or closing keywords such as Closes #1). Every whitespace run
-becomes one space, and the result is trimmed and counted in code points.
-
---diff reads a unified diff and checks each newly added comment run or
-docstring (kinds code-comment and docstring). Only added lines count. It
-prints one line per block over its cap: <path>:<line>: <kind> <n>/<cap> over by <n>.
-
-Exit codes:
-    0  every part is within its cap
-    1  at least one part is over
-    5  bad usage: unknown kind, --title with commit, --diff with --kind or
-       --title, undecodable stdin (not in --diff mode)
+Usage: length_check.py --kind K [--title T] < text, or --diff < unified-diff.
+Exit 0 ok, 1 over a cap, 5 bad usage.
 """
-
 from __future__ import annotations
 
 import argparse
+import ast
 import os
 import re
+import subprocess
 import sys
+from collections.abc import Callable
 from typing import NamedTuple
 
 CAPS: dict[str, tuple[int | None, int | None]] = {
@@ -112,6 +92,7 @@ def _drop_trailer(lines: list[str]) -> list[str]:
     return lines
 
 
+# Drops fences, doctests (docstring only) and a final trailer paragraph; whitespace runs collapse.
 def measure(text: str, kind: str) -> int:
     if kind not in CAPS:
         raise ValueError(f"unknown kind: {kind}")
@@ -152,7 +133,6 @@ _SLASH_EXTS = {
     ".c", ".h", ".cc", ".cpp", ".hpp", ".java", ".kt",
 }  # fmt: skip
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-_TRIPLE = re.compile(r"^[rRuUbBfF]{0,2}(\"{3}|'{3})")
 
 Segment = list[tuple[int, str]]
 
@@ -191,21 +171,6 @@ def _added_segments(diff: str) -> list[tuple[str, list[Segment]]]:
     return files
 
 
-def _take_quoted(seg: Segment, i: int, start: int, delim: str) -> tuple[str, int]:
-    lines: list[str] = []
-    j = i
-    while j < len(seg):
-        s = seg[j][1].strip()
-        if j == i:
-            s = s[start:]
-        if delim in s:
-            lines.append(s.split(delim)[0])
-            return "\n".join(lines), j + 1
-        lines.append(s)
-        j += 1
-    return "\n".join(lines), j
-
-
 def _take_block(seg: Segment, i: int, opener: str) -> tuple[str, int]:
     lines: list[str] = []
     j = i
@@ -223,8 +188,11 @@ def _take_block(seg: Segment, i: int, opener: str) -> tuple[str, int]:
     return "\n".join(lines), j
 
 
-def _scan(seg: Segment, ext: str) -> list[Block]:
-    """Blocks in one run of added lines; path is filled in by the caller."""
+def _scan(seg: Segment, ext: str, skip: frozenset[int] = frozenset()) -> list[Block]:
+    """Blocks in one run of added lines; path is filled in by the caller.
+
+    Lines in `skip` are string-literal lines and never start or extend a comment.
+    """
     hash_family = ext in _HASH_EXTS or ext == ""
     marker = "#" if hash_family else "//"
     out: list[Block] = []
@@ -238,16 +206,17 @@ def _scan(seg: Segment, ext: str) -> list[Block]:
     i = 0
     while i < len(seg):
         no, s = seg[i][0], seg[i][1].strip()
+        if no in skip:
+            flush()
+            i += 1
+            continue
         if s.startswith(marker) and not s.startswith("#!"):
             run.append((no, re.sub(r"^" + re.escape(marker[0]) + r"+\s?", "", s)))
             i += 1
             continue
         flush()
         kind, text, nxt = "", "", i + 1
-        if ext == ".py" and (m := _TRIPLE.match(s)):
-            kind = "docstring"
-            text, nxt = _take_quoted(seg, i, m.end(), m.group(1))
-        elif not hash_family and s.startswith("/*"):
+        if not hash_family and s.startswith("/*"):
             doc = s.startswith("/**") and not s.startswith("/**/")
             kind = "docstring" if doc else "code-comment"
             text, nxt = _take_block(seg, i, "/**" if doc else "/*")
@@ -258,8 +227,66 @@ def _scan(seg: Segment, ext: str) -> list[Block]:
     return out
 
 
-def comment_blocks(diff: str) -> list[Block]:
-    """Code comments and docstrings that a unified diff adds."""
+_OPEN_QUOTE = re.compile(r"^[rRuUbBfF]{0,2}(\"{3}|'{3}|\"|')")
+_CLOSE_QUOTE = re.compile(r"(\"{3}|'{3}|\"|')\s*$")
+
+
+def _python_strings(source: str) -> tuple[list[tuple[int, int]], frozenset[int]] | None:
+    """Docstring (first, last) line spans and every line inside a multi-line string."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return None
+    docs: list[tuple[int, int]] = []
+    string_lines: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.end_lineno and node.end_lineno > node.lineno:
+                string_lines.update(range(node.lineno, node.end_lineno + 1))
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            first = node.body[0] if node.body else None
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+                and first.end_lineno
+            ):
+                docs.append((first.lineno, first.end_lineno))
+    return sorted(docs), frozenset(string_lines)
+
+
+def _python_docstrings(
+    path: str, added: dict[int, str], read_file: Callable[[str], str | None] | None
+) -> tuple[list[Block], frozenset[int]]:
+    source = read_file(path) if read_file else None
+    found = _python_strings(source) if source is not None else None
+    if found is None:
+        return [], frozenset()
+    docs, string_lines = found
+    blocks: list[Block] = []
+    for lo, hi in docs:
+        lines = [(n, added[n].strip()) for n in range(lo, hi + 1) if n in added]
+        if not lines:
+            continue
+        texts = []
+        for n, t in lines:
+            if n == lo:
+                t = _OPEN_QUOTE.sub("", t, count=1)
+            if n == hi:
+                t = _CLOSE_QUOTE.sub("", t, count=1)
+            texts.append(t)
+        blocks.append(Block(path, lines[0][0], "docstring", "\n".join(texts)))
+    return blocks, string_lines
+
+
+def comment_blocks(
+    diff: str, read_file: Callable[[str], str | None] | None = None
+) -> list[Block]:
+    """Code comments and docstrings that a unified diff adds.
+
+    Python docstrings need the new file text from `read_file(path)`; without it
+    (or if it does not parse) a .py file yields no docstring blocks.
+    """
     blocks: list[Block] = []
     for path, segments in _added_segments(diff):
         ext = os.path.splitext(path)[1]
@@ -268,9 +295,23 @@ def comment_blocks(diff: str) -> list[Block]:
             continue
         if ext not in _HASH_EXTS | _SLASH_EXTS | {""}:
             continue
+        found: list[Block] = []
+        skip: frozenset[int] = frozenset()
+        if ext == ".py":
+            added = {n: t for seg in segments for n, t in seg}
+            found, skip = _python_docstrings(path, added, read_file)
         for seg in segments:
-            blocks.extend(b._replace(path=path) for b in _scan(seg, ext))
+            found.extend(b._replace(path=path) for b in _scan(seg, ext, skip))
+        blocks.extend(sorted(found, key=lambda b: b.line))
     return blocks
+
+
+def _staged_file(path: str) -> str | None:
+    try:
+        r = subprocess.run(["git", "show", f":{path}"], capture_output=True, check=False)
+    except OSError:
+        return None
+    return r.stdout.decode("utf-8", errors="replace") if r.returncode == 0 else None
 
 
 class _Parser(argparse.ArgumentParser):
@@ -295,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
         # A commit must not fail because some file in the diff is not UTF-8.
         diff = sys.stdin.buffer.read().decode("utf-8", errors="replace")
         over = False
-        for b in comment_blocks(diff):
+        for b in comment_blocks(diff, _staged_file):
             cap = CAPS[b.kind][1]
             count = measure(b.text, b.kind)
             if cap is not None and count > cap:

@@ -10,6 +10,7 @@ import importlib.util
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -179,6 +180,27 @@ def hunk(path, start, lines, deleted=0):
 TQ = '"' * 3
 
 
+def diff_of(path, source_lines, added):
+    """A -U0 diff of `path` in which exactly the 1-based line numbers `added` are new."""
+    out = [f"diff --git a/{path} b/{path}", f"--- a/{path}", f"+++ b/{path}"]
+    nums = sorted(added)
+    i = 0
+    while i < len(nums):
+        j = i
+        while j + 1 < len(nums) and nums[j + 1] == nums[j] + 1:
+            j += 1
+        out.append(f"@@ -{nums[i] - 1},0 +{nums[i]},{j - i + 1} @@")
+        out += ["+" + source_lines[n - 1] for n in nums[i:j + 1]]
+        i = j + 1
+    return "\n".join(out) + "\n"
+
+
+def blocks_of(source_lines, added, path="a.py", readable=True):
+    diff = diff_of(path, source_lines, added)
+    reader = {path: "\n".join(source_lines) + "\n"}.get if readable else None
+    return lc.comment_blocks(diff, reader)
+
+
 class DiffTests(unittest.TestCase):
     def test_added_comment_run_over_cap_fails(self):
         diff = hunk("a.py", 10, ["# " + "w" * 141])
@@ -203,21 +225,55 @@ class DiffTests(unittest.TestCase):
         self.assertEqual([b.text for b in lc.comment_blocks(diff)], ["one", "two"])
 
     def test_python_docstring_is_docstring_kind(self):
-        diff = hunk("a.py", 3, [f"    {TQ}Summary.", "", f"    More.{TQ}", "# tail"])
-        docs = [b for b in lc.comment_blocks(diff) if b.kind == "docstring"]
-        self.assertEqual(len(docs), 1)
-        self.assertEqual((docs[0].line, docs[0].text.split()), (3, ["Summary.", "More."]))
-        self.assertEqual(lc.measure(docs[0].text, "docstring"), len("Summary. More."))
+        src = ["def f():", f"    {TQ}Summary.", "", f"    More.{TQ}", "    # tail", "    return 1"]
+        blocks = blocks_of(src, {2, 3, 4, 5})
+        self.assertEqual([(b.kind, b.line) for b in blocks], [("docstring", 2), ("code-comment", 5)])
+        self.assertEqual(blocks[0].text.split(), ["Summary.", "More."])
 
     def test_one_line_docstring(self):
         sq = "'" * 3
-        [b] = lc.comment_blocks(hunk("a.py", 2, [f"{sq}Short.{sq}"]))
+        [b] = blocks_of(["def f():", f"    {sq}Short.{sq}"], {2})
         self.assertEqual((b.kind, b.text), ("docstring", "Short."))
 
+    def test_module_and_class_docstrings(self):
+        src = [f"{TQ}Mod.{TQ}", "class C:", f"    {TQ}Cls.{TQ}"]
+        self.assertEqual([b.text for b in blocks_of(src, {1, 3})], ["Mod.", "Cls."])
+
     def test_docstring_doctest_and_fence_collapse_like_task_1(self):
-        body = ["Add.", "", ">>> add(1, 2)", "3", "```", "y" * 500, "```", TQ]
-        [b] = lc.comment_blocks(hunk("a.py", 1, [TQ + line for line in body[:1]] + body[1:]))
+        body = [TQ + "Add.", "", ">>> add(1, 2)", "3", "```", "y" * 500, "```", TQ]
+        [b] = blocks_of(["def f():"] + ["    " + x for x in body], set(range(2, 10)))
         self.assertEqual(lc.measure(b.text, b.kind), 4)
+
+    def test_stray_closer_followed_by_code_is_not_swallowed(self):
+        src = ["def f():", f"    {TQ}Old.", "    " + "w " * 200, f"    {TQ}", "def g():", "    return 1"]
+        blocks = blocks_of(src, {4, 5, 6})
+        self.assertEqual([lc.measure(b.text, b.kind) for b in blocks], [0])
+
+    def test_bare_triple_quoted_call_argument_is_not_docstring(self):
+        src = ["run(", f"    {TQ}" + "w " * 200, f"    {TQ},", ")"]
+        self.assertEqual(blocks_of(src, {2, 3}), [])
+
+    def test_hash_line_inside_string_is_not_comment(self):
+        src = ["x = (", f"    {TQ}a", "# not a comment", f"    {TQ}", ")"]
+        self.assertEqual(blocks_of(src, {2, 3, 4}), [])
+
+    def test_added_docstring_over_cap_fails_via_cli_path(self):
+        src = ["def f():", f"    {TQ}" + "w" * 281 + TQ]
+        [b] = blocks_of(src, {2})
+        self.assertEqual(lc.measure(b.text, b.kind), 281)
+
+    def test_one_line_added_to_long_docstring_measures_only_that_line(self):
+        src = ["def f():", f"    {TQ}" + "w" * 400, "    extra", f"    {TQ}"]
+        [b] = blocks_of(src, {3})
+        self.assertEqual((b.line, b.text), (3, "extra"))
+
+    def test_unparseable_file_yields_no_docstring_block(self):
+        src = ["def f(:", f"    {TQ}doc{TQ}"]
+        self.assertEqual(blocks_of(src, {2}), [])
+
+    def test_no_reader_yields_no_docstring_block(self):
+        src = ["def f():", f"    {TQ}doc{TQ}", "    # note"]
+        self.assertEqual([b.kind for b in blocks_of(src, {2, 3}, readable=False)], ["code-comment"])
 
     def test_jsdoc_is_docstring_and_block_comment_is_code_comment(self):
         diff = hunk("a.ts", 1, ["/**", " * Doc line.", " */", "/* plain", " * note */", "// eol"])
@@ -289,12 +345,28 @@ class DiffTests(unittest.TestCase):
         self.assertEqual((ok.returncode, ok.stdout), (0, b""))
         self.assertEqual(run_cli(["--diff"], b"").returncode, 0)
 
-    def test_cli_diff_docstring_cap_is_280(self):
-        diff = hunk("a.py", 1, [TQ + "w" * 280 + TQ]).encode()
-        self.assertEqual(run_cli(["--diff"], diff).returncode, 0)
-        diff = hunk("a.py", 1, [TQ + "w" * 281 + TQ]).encode()
-        p = run_cli(["--diff"], diff)
-        self.assertEqual(p.stdout.decode(), "a.py:1: docstring 281/280 over by 1\n")
+    def test_cli_diff_docstring_uses_staged_file(self):
+        def run_in_repo(doc_len):
+            with tempfile.TemporaryDirectory() as tmp:
+                git = ["git", "-C", tmp]
+                subprocess.run([*git, "init", "-q"], check=True)
+                (pathlib.Path(tmp) / "a.py").write_text(
+                    f"def f():\n    {TQ}" + "w" * doc_len + f"{TQ}\n    return 1\n"
+                )
+                subprocess.run([*git, "add", "a.py"], check=True)
+                diff = subprocess.run(
+                    [*git, "diff", "--cached", "-U0", "--no-color"], capture_output=True, check=True
+                ).stdout
+                return subprocess.run(
+                    [sys.executable, str(SCRIPT), "--diff"],
+                    input=diff, capture_output=True, check=False, cwd=tmp,
+                )
+
+        ok = run_in_repo(280)
+        self.assertEqual((ok.returncode, ok.stdout), (0, b""))
+        bad = run_in_repo(281)
+        self.assertEqual(bad.returncode, 1)
+        self.assertEqual(bad.stdout.decode(), "a.py:2: docstring 281/280 over by 1\n")
 
     def test_cli_diff_with_kind_or_title_exit_5(self):
         self.assertEqual(run_cli(["--diff", "--kind", "pr"], b"").returncode, 5)
