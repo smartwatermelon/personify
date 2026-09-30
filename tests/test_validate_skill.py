@@ -35,6 +35,7 @@ license: MIT (derivative of blader/humanizer; see Provenance)
 # Personify
 
 The structural rules live in `rules/structure.md`.
+The length check is `scripts/length_check.py`.
 """
 
 
@@ -59,6 +60,7 @@ class ValidatorCase(unittest.TestCase):
         manifest_version: str = VERSION,
         skill_body: str | None = None,
         structure: bool = True,
+        length_check: bool = True,
         extra: dict[str, str] | None = None,
     ) -> pathlib.Path:
         """Write a minimal repo, then git init and add it so git ls-files sees it."""
@@ -75,6 +77,12 @@ class ValidatorCase(unittest.TestCase):
             (self.root / "rules").mkdir(exist_ok=True)
             (self.root / "rules" / "structure.md").write_text(
                 "# Structural rules\n\nNo headers, no bullets.\n", encoding="utf-8"
+            )
+
+        if length_check:
+            (self.root / "scripts").mkdir(exist_ok=True)
+            (self.root / "scripts" / "length_check.py").write_text(
+                "# stub\n", encoding="utf-8"
             )
 
         for name, content in (extra or {}).items():
@@ -129,6 +137,23 @@ class TestStructureFile(ValidatorCase):
         failures = self.module.validate(root)
         self.assertTrue(
             any("must reference rules/structure.md" in f for f in failures),
+            f"expected a missing-reference failure, got {failures}",
+        )
+
+
+class TestLengthCheckFile(ValidatorCase):
+    def test_missing_length_check_fails(self):
+        root = self.build(length_check=False)
+        self.assertIn("scripts/length_check.py not found", self.module.validate(root))
+
+    def test_unreferenced_length_check_fails(self):
+        body = FRONTMATTER.format(version=VERSION).replace(
+            "The length check is `scripts/length_check.py`.", "No reference here."
+        )
+        root = self.build(skill_body=body)
+        failures = self.module.validate(root)
+        self.assertTrue(
+            any("must reference scripts/length_check.py" in f for f in failures),
             f"expected a missing-reference failure, got {failures}",
         )
 

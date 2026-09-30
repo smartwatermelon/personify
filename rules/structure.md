@@ -14,6 +14,20 @@ structure is enforced here instead.
 file is the compact statement of the same rules, for a caller that needs them
 without the rest of the skill.
 
+## Length caps
+
+One unit is 140 characters. Caps: commit title 50 (prefix counts) and body 140;
+PR title 70 and body 280; issue title 70 and body not enforced; line comment on
+a PR 280; PR comment, review body and issue comment 140; code comment 140 per
+contiguous run of comment lines; docstring 280.
+
+Fenced code blocks, docstring `>>>` examples and trailers (`Co-authored-by:`,
+`Closes #N`) do not count. Whitespace runs collapse to one space. Check with
+`python3 scripts/length_check.py --kind <kind> < file` (`commit`, `pr`,
+`issue`, `line-comment`, `pr-comment`, `code-comment`, `docstring`). On exit 1,
+rewrite shorter and run it again: a length count is deterministic, so this loop
+converges.
+
 ## GitHub PR descriptions
 
 The reader is a competent code reviewer who is about to read the diff. The
@@ -52,11 +66,13 @@ far lower. At most one comment per logical block, and only where a competent
 reader of the code would not already know it.
 
 One comment means one, not one physical line. A comment that wraps to a second
-line is still one comment. A second comment on the same block is not.
+line is still one comment, and the 140-character cap covers the whole run. A
+second comment on the same block is not.
 
 A comment is for what the code cannot say: why this way rather than the obvious
 way, a constraint that is not visible locally, a workaround and what it works
 around. A comment that narrates the line under it is the tell.
 
 Docstrings and generated API documentation are not code comments for this rule.
-They are reference material and the 1:1 ratio does not apply to them.
+They are reference material. The 1:1 ratio does not apply to them, but the
+280-character docstring cap does.
