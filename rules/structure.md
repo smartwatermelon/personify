@@ -16,7 +16,7 @@ without the rest of the skill.
 
 ## Length caps
 
-One unit is 140 characters. Caps: commit title 50 (prefix counts) and body 140;
+One unit is 140 characters. Caps: commit title 70 (prefix counts) and body 140;
 PR title 70 and body 280; issue title 70 and body not enforced; line comment on
 a PR 280; PR comment, review body and issue comment 140; code comment 140 per
 contiguous run of comment lines; docstring 280.
