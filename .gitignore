@@ -10,3 +10,7 @@ VOICE.corpus.md
 # existed (.Codex-plugin/, ~/.Codex/). A local copy is fine; a tracked one
 # drifts because nothing in this repo reads it.
 AGENTS.md
+
+# Claude Code local state and the generated .claude/ scaffold.
+# Share a file by negating it: .claude/* then !.claude/<path>
+.claude/
