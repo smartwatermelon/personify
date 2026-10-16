@@ -1,6 +1,6 @@
 ---
 name: personify
-version: 2.1.0
+version: 2.2.0
 description: Draft in your own register, then check the result against a detector before sending, publishing, or shipping it. Use when editing text (emails, docs, comments, PRs, blog drafts, essays) someone else will read. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Submits the result to Pangram and stops when the verdict is not Human, rather than editing toward a score. Also carries the structural rules for GitHub PR descriptions and code comments, which no detector can see. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
@@ -313,9 +313,18 @@ other repo, so a path resolved against the working directory finds nothing.
 1. **Draft**, guided by the voice guide and the rules above.
 2. **Write the result to the file it will publish from.** The same file `git
    commit -F` or `gh pr create --body-file` will read.
-3. **Run the check by redirecting that file into stdin:**
+3. **Run the check by redirecting that file into stdin, and name where the
+   text is going:**
 
-       python3 <skill-dir>/scripts/pangram_check.py < body.md
+       python3 <skill-dir>/scripts/pangram_check.py --dir <checkout> < body.md
+
+   The destination is `--dir` with the checkout the text publishes from, or
+   `--repo owner/name` when it goes to a repo with no local checkout. Add
+   `--kind <kind>` when the kind is known (`commit`, `pr`, `issue`, and so on),
+   and pass `--kind copy` on its own for an extract of public-facing copy.
+   Without a route command configured the flags change nothing. With one, at
+   `~/.config/personify/route-command`, a run with no destination is refused,
+   and only a destination that needs a check reaches Pangram.
 
    The redirect is load-bearing. The client keys its stamp to the sha256 of the
    bytes stdin delivers, and a hook later hashes the same file. `echo "$text" |
@@ -331,6 +340,13 @@ other repo, so a path resolved against the working directory finds nothing.
    | 3 | FAIL_MIXED, verdict Mixed | Stop and report. |
    | 4 | SKIPPED, under the 40-word floor | Report as skipped, never as passed. |
    | 5 | UNAVAILABLE | See the next section. |
+   | 6 | NOT_NEEDED, the route says no check is needed | Proceed without a check. |
+
+   Exit 6 is a decision, not a failure. Nothing was submitted and nothing was
+   recorded, because this destination does not need a check. Do not retry it,
+   do not rerun it with a different destination to get a check, and do not
+   look for another way to submit the text. Proceed as that destination's own
+   rules say.
 
 The client strips frontmatter, fenced and indented code, HTML tags, images, and
 heading, blockquote, and bullet markers before submitting, and the word count for
@@ -394,7 +410,9 @@ tried. Editing does not move the verdict.
 
 Exit code 5 covers every case where no verdict exists: no API key resolved, a
 transport failure, a rejected key, an account out of credits, or a task that
-came back failed. Exit code 4 covers text under the 40-word floor.
+came back failed. When a route command is configured it also covers a missing
+destination and a route command that failed, timed out, or gave an answer it
+does not know. Exit code 4 covers text under the 40-word floor.
 
 **Fail closed in every one of them.** Route the text to manual review and say
 which case fired. The JSON on stdout names it.

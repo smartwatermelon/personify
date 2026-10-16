@@ -72,12 +72,62 @@ describe("MCP SDK smoke test (real Server + real Client, in-process transport)",
     expect(result.tools[0].inputSchema.required).toEqual(["text"]);
   });
 
-  it("advertises text only, plus an output schema", async () => {
+  it("advertises text plus optional destination inputs, and an output schema", async () => {
     const client = await connectedClient();
     const result = await client.listTools();
     const tool = result.tools[0];
-    expect(Object.keys(tool.inputSchema.properties ?? {})).toEqual(["text"]);
+    expect(Object.keys(tool.inputSchema.properties ?? {})).toEqual([
+      "text",
+      "repo",
+      "dir",
+      "kind",
+    ]);
+    expect(tool.inputSchema.required).toEqual(["text"]);
     expect(tool.outputSchema?.required).toEqual(["outcome"]);
+  });
+
+  it("passes repo, dir, and kind through to the runner", async () => {
+    runPersonifyMock.mockResolvedValue({
+      kind: "verified",
+      text: "t",
+      sha256: "c".repeat(64),
+    });
+    checkPersonifyVersionMock.mockResolvedValue({ stale: false });
+    const client = await connectedClient();
+    await client.callTool({
+      name: "personify",
+      arguments: {
+        text: "raw text",
+        repo: "beacon-biosignals/x",
+        dir: "/src/x",
+        kind: "pr",
+      },
+    });
+    expect(runPersonifyMock).toHaveBeenCalledWith("raw text", {
+      destination: { repo: "beacon-biosignals/x", dir: "/src/x", kind: "pr" },
+    });
+  });
+
+  it("calls the runner with the text alone when no destination is given", async () => {
+    runPersonifyMock.mockResolvedValue({
+      kind: "verified",
+      text: "t",
+      sha256: "c".repeat(64),
+    });
+    checkPersonifyVersionMock.mockResolvedValue({ stale: false });
+    const client = await connectedClient();
+    await client.callTool({ name: "personify", arguments: { text: "raw" } });
+    expect(runPersonifyMock).toHaveBeenCalledWith("raw");
+  });
+
+  it("rejects a destination that is not a string", async () => {
+    const client = await connectedClient();
+    const result = await client.callTool({
+      name: "personify",
+      arguments: { text: "raw", repo: 7 },
+    });
+    expect(result.isError).toBe(true);
+    expect(runPersonifyMock).not.toHaveBeenCalled();
   });
 
   it("calls the personify tool over a real handshake and gets a real result", async () => {

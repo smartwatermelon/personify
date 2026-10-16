@@ -1,12 +1,53 @@
-// The instruction names the publish file and nothing else. It restates no
-// rule from SKILL.md: step 2 of the skill already writes the result to "the
-// file it will publish from", so naming that file is the whole contract.
-export function buildInstruction(bodyPath: string): string {
+import type { Destination } from "./types.js";
+
+// Names the publish file and any destination flags; restates no SKILL.md
+// rule.
+export function buildInstruction(
+  bodyPath: string,
+  destinationFlags: string[] = [],
+): string {
+  const flags =
+    destinationFlags.length > 0
+      ? " When you run the check, pass these destination flags to " +
+        `pangram_check.py exactly as written: ${destinationFlags.join(" ")}.`
+      : "";
   return (
     "Run the personify:personify skill on the text provided via stdin. " +
     `The file this text publishes from is ${bodyPath}. Write your final ` +
-    "text to that file, then follow the skill's check against it."
+    "text to that file, then follow the skill's check against it." +
+    flags
   );
+}
+
+// Values land in a prompt, then a shell command: no quotes or spaces.
+const REPO_SHAPE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const DIR_SHAPE = /^\/[A-Za-z0-9_.\/@+-]*$/;
+const KIND_SHAPE = /^[a-z][a-z-]*$/;
+
+export function validateDestination(dest: Destination): string | null {
+  if (dest.repo !== undefined && !REPO_SHAPE.test(dest.repo))
+    return `repo must look like owner/name: ${JSON.stringify(dest.repo)}`;
+  if (dest.dir !== undefined && !DIR_SHAPE.test(dest.dir))
+    return (
+      "dir must be an absolute path of letters, digits, and . _ / @ + - " +
+      `only: ${JSON.stringify(dest.dir)}`
+    );
+  if (dest.kind !== undefined && !KIND_SHAPE.test(dest.kind))
+    return `kind must be a lowercase word such as pr or copy: ${JSON.stringify(dest.kind)}`;
+  return null;
+}
+
+// Same order as gate-review.sh route: --kind, --repo, --dir.
+export function destinationFlags(dest: Destination): string[] {
+  const flags: string[] = [];
+  if (dest.kind) flags.push("--kind", dest.kind);
+  if (dest.repo) flags.push("--repo", dest.repo);
+  if (dest.dir) flags.push("--dir", dest.dir);
+  return flags;
+}
+
+export function hasDestination(dest: Destination): boolean {
+  return Boolean(dest.repo || dest.dir || dest.kind === "copy");
 }
 
 export type VoiceGuideInput = { path: string; realpath: string };
@@ -15,6 +56,7 @@ export type CliArgsInput = {
   installPath: string;
   voiceGuide: VoiceGuideInput | null;
   bodyPath: string;
+  destinationFlags?: string[];
 };
 
 // Every rule here was measured on 2026-09-22 (see the spec). Under --print,
@@ -61,7 +103,7 @@ export function buildCliArgs(input: CliArgsInput): string[] {
   // The prompt must come before --allowedTools, which is variadic.
   return [
     "--print",
-    buildInstruction(input.bodyPath),
+    buildInstruction(input.bodyPath, input.destinationFlags),
     "--output-format",
     "json",
     "--allowedTools",

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { buildCliArgs, buildInstruction } from "../src/cli-args.js";
+import {
+  buildCliArgs,
+  buildInstruction,
+  destinationFlags,
+  hasDestination,
+  validateDestination,
+} from "../src/cli-args.js";
 
 const base = {
   installPath: "/plug/2.0.0",
@@ -101,5 +107,60 @@ describe("buildInstruction", () => {
     const text = buildInstruction("/private/tmp/p-1/body.md");
     expect(text).toContain("personify:personify");
     expect(text).toContain("/private/tmp/p-1/body.md");
+  });
+});
+
+describe("destination passthrough", () => {
+  it("names the destination flags in the instruction", () => {
+    const flags = destinationFlags({
+      repo: "beacon-biosignals/x",
+      dir: "/src/x",
+      kind: "pr",
+    });
+    expect(flags).toEqual([
+      "--kind",
+      "pr",
+      "--repo",
+      "beacon-biosignals/x",
+      "--dir",
+      "/src/x",
+    ]);
+    const args = buildCliArgs({
+      installPath: "/opt/p",
+      voiceGuide: null,
+      bodyPath: "/private/tmp/p-1/body.md",
+      destinationFlags: flags,
+    });
+    expect(args[1]).toContain(
+      "--kind pr --repo beacon-biosignals/x --dir /src/x",
+    );
+  });
+
+  it("leaves the instruction unchanged with no destination", () => {
+    expect(buildInstruction("/b.md", [])).toBe(buildInstruction("/b.md"));
+    expect(buildInstruction("/b.md")).not.toContain("--");
+  });
+
+  it("rejects values that could break out of the command", () => {
+    expect(validateDestination({ repo: "a/b; rm x" })).toMatch(/repo/);
+    expect(validateDestination({ repo: "noslash" })).toMatch(/repo/);
+    expect(validateDestination({ dir: "relative/path" })).toMatch(/dir/);
+    expect(validateDestination({ dir: "/a b" })).toMatch(/dir/);
+    expect(validateDestination({ dir: "/a$(x)" })).toMatch(/dir/);
+    expect(validateDestination({ kind: "PR --x" })).toMatch(/kind/);
+    expect(
+      validateDestination({
+        repo: "o/n",
+        dir: "/a/b-c_d.e",
+        kind: "pr-comment",
+      }),
+    ).toBeNull();
+  });
+
+  it("counts --kind copy alone as a destination, any other kind not", () => {
+    expect(hasDestination({ kind: "copy" })).toBe(true);
+    expect(hasDestination({ kind: "pr" })).toBe(false);
+    expect(hasDestination({ dir: "/x" })).toBe(true);
+    expect(hasDestination({})).toBe(false);
   });
 });

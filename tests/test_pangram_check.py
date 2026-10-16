@@ -994,5 +994,319 @@ class OnePasswordFallbackTests(unittest.TestCase):
             self.assertIsNone(pangram.read_op_secret())
 
 
+LONG_TEXT = " ".join(f"word{n}" for n in range(60)).encode("utf-8")
+
+
+class FakeRouter:
+    """A route-command script in a temp dir, installed into a temp config.
+
+    The script records its argv, one argument per line, so a test can assert
+    exactly what the client asked. Commands inside it are absolute, because
+    the CLI tests run with an empty PATH.
+    """
+
+    def __init__(self, config: TempConfig, body: str):
+        self.config = config
+        self.bin = tempfile.TemporaryDirectory()
+        self.argv_file = pathlib.Path(self.bin.name) / "argv"
+        self.script = pathlib.Path(self.bin.name) / "route-command"
+        self.script.write_text(
+            "#!/bin/sh\n"
+            f"for arg in \"$@\"; do printf '%s\\n' \"$arg\"; done > '{self.argv_file}'\n"
+            f"{body}\n",
+            encoding="utf-8",
+        )
+        self.script.chmod(0o755)
+        self.install(str(self.script))
+
+    def install(self, line: str) -> None:
+        root = pathlib.Path(self.config.directory.name) / "personify"
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "route-command").write_text(line + "\n", encoding="utf-8")
+
+    def argv(self):
+        if not self.argv_file.exists():
+            return None
+        return self.argv_file.read_text(encoding="utf-8").splitlines()
+
+    def cleanup(self):
+        self.bin.cleanup()
+
+
+def router_printing(outcome: str, rule: str = "2", reason: str = "test rule") -> str:
+    return f"printf '%s\\t%s\\t%s\\n' '{outcome}' '{rule}' '{reason}'"
+
+
+class RouteGuardTests(unittest.TestCase):
+    """The opt-in route guard: only a pangram route reaches the API."""
+
+    def setUp(self):
+        self.config = TempConfig()
+        self.addCleanup(self.config.cleanup)
+
+    def router(self, body: str) -> FakeRouter:
+        fake = FakeRouter(self.config, body)
+        self.addCleanup(fake.cleanup)
+        return fake
+
+    def run_check(self, raw, replayer, destination):
+        return pangram.check(
+            raw,
+            request=replayer,
+            env=dict(self.config.env),
+            sleep=no_sleep,
+            destination=destination,
+        )
+
+    def assert_untouched(self, replayer):
+        self.assertEqual(replayer.calls, [])
+        self.assertFalse(self.config.checks().exists())
+        self.assertFalse(self.config.stamps().exists())
+
+    def test_exempt_route_makes_no_call_and_writes_no_record(self):
+        fake = self.router(router_printing("exempt", "2"))
+        replayer = Replayer([fixture_json("human_long")])
+        code, report = self.run_check(
+            fixture_text("human_long").encode("utf-8"),
+            replayer,
+            {"repo": "someone/elsewhere"},
+        )
+        self.assertEqual(code, pangram.EXIT_NOT_NEEDED)
+        self.assertEqual(report["status"], "NOT_NEEDED")
+        self.assertEqual(report["route"], "exempt")
+        self.assertEqual(report["rule"], "2")
+        self.assert_untouched(replayer)
+        self.assertEqual(fake.argv(), ["route", "--repo", "someone/elsewhere"])
+
+    def test_visual_route_makes_no_call_and_writes_no_record(self):
+        fake = self.router(router_printing("visual", "3"))
+        replayer = Replayer([fixture_json("human_long")])
+        code, report = self.run_check(
+            fixture_text("human_long").encode("utf-8"),
+            replayer,
+            {"dir": "/some/checkout", "kind": "commit"},
+        )
+        self.assertEqual(code, pangram.EXIT_NOT_NEEDED)
+        self.assertEqual(report["route"], "visual")
+        self.assertEqual(report["rule"], "3")
+        self.assert_untouched(replayer)
+        self.assertEqual(
+            fake.argv(), ["route", "--kind", "commit", "--dir", "/some/checkout"]
+        )
+
+    def test_exempt_short_text_writes_no_skip_record(self):
+        self.router(router_printing("exempt"))
+        replayer = Replayer([])
+        code, _ = self.run_check(b"Too short.", replayer, {"repo": "a/b"})
+        self.assertEqual(code, pangram.EXIT_NOT_NEEDED)
+        self.assert_untouched(replayer)
+
+    def test_exempt_route_never_resolves_a_key(self):
+        self.router(router_printing("exempt"))
+        with mock.patch.object(pangram, "resolve_key") as resolve:
+            code, _ = pangram.check(
+                LONG_TEXT,
+                request=pangram.lazy_request(dict(self.config.env)),
+                env=dict(self.config.env),
+                sleep=no_sleep,
+                destination={"repo": "a/b"},
+            )
+        self.assertEqual(code, pangram.EXIT_NOT_NEEDED)
+        resolve.assert_not_called()
+
+    def test_pangram_route_proceeds_to_the_api(self):
+        fake = self.router(router_printing("pangram", "1"))
+        replayer = Replayer([fixture_json("human_long")])
+        code, report = self.run_check(
+            fixture_text("human_long").encode("utf-8"),
+            replayer,
+            {"repo": "beacon-biosignals/thing"},
+        )
+        self.assertEqual(code, pangram.EXIT_PASS)
+        self.assertEqual(len(replayer.posts()), 1)
+        self.assertTrue(pathlib.Path(report["stamp_path"]).exists())
+        self.assertEqual(fake.argv(), ["route", "--repo", "beacon-biosignals/thing"])
+
+    def test_kind_copy_alone_is_a_destination(self):
+        fake = self.router(router_printing("pangram", "4"))
+        replayer = Replayer([fixture_json("human_long")])
+        code, _ = self.run_check(
+            fixture_text("human_long").encode("utf-8"), replayer, {"kind": "copy"}
+        )
+        self.assertEqual(code, pangram.EXIT_PASS)
+        self.assertEqual(fake.argv(), ["route", "--kind", "copy"])
+
+    def assert_refused(self, destination, needle, replayer=None):
+        replayer = replayer or Replayer([fixture_json("human_long")])
+        with self.assertRaises(pangram.CheckError) as caught:
+            self.run_check(LONG_TEXT, replayer, destination)
+        self.assertEqual(caught.exception.code, pangram.EXIT_UNAVAILABLE)
+        self.assertIn(needle, caught.exception.message)
+        self.assert_untouched(replayer)
+
+    def test_missing_destination_is_refused(self):
+        fake = self.router(router_printing("pangram"))
+        self.assert_refused(None, "no destination")
+        self.assert_refused({}, "no destination")
+        self.assertIsNone(fake.argv())
+
+    def test_a_kind_other_than_copy_alone_is_not_a_destination(self):
+        self.router(router_printing("pangram"))
+        self.assert_refused({"kind": "pr"}, "no destination")
+
+    def test_router_nonzero_exit_is_refused(self):
+        self.router("echo boom >&2\nexit 3")
+        self.assert_refused({"repo": "a/b"}, "exited 3")
+
+    def test_router_garbage_output_is_refused(self):
+        self.router("echo 'definitely not a route'")
+        self.assert_refused({"repo": "a/b"}, "unknown route outcome")
+
+    def test_router_empty_output_is_refused(self):
+        self.router("exit 0")
+        self.assert_refused({"repo": "a/b"}, "no output")
+
+    def test_router_timeout_is_refused(self):
+        self.router("/bin/sleep 5")
+        with mock.patch.object(pangram, "ROUTE_TIMEOUT_SECONDS", 0.5):
+            self.assert_refused({"repo": "a/b"}, "timed out")
+
+    def test_a_non_executable_route_command_is_refused(self):
+        fake = self.router(router_printing("pangram"))
+        fake.script.chmod(0o644)
+        self.assert_refused({"repo": "a/b"}, "not an executable")
+
+    def test_a_missing_route_command_target_is_refused(self):
+        fake = self.router(router_printing("pangram"))
+        fake.install(str(pathlib.Path(fake.bin.name) / "nope"))
+        self.assert_refused({"repo": "a/b"}, "not an executable")
+
+    def test_a_relative_route_command_is_refused(self):
+        fake = self.router(router_printing("pangram"))
+        fake.install("bin/route-command")
+        self.assert_refused({"repo": "a/b"}, "absolute path")
+
+    def test_an_empty_route_command_file_is_refused(self):
+        fake = self.router(router_printing("pangram"))
+        fake.install("")
+        self.assert_refused({"repo": "a/b"}, "absolute path")
+
+    def test_no_route_command_file_keeps_the_old_behavior(self):
+        for destination in (None, {"repo": "a/b"}):
+            with self.subTest(destination=destination):
+                replayer = Replayer([fixture_json("human_long")])
+                code, _ = self.run_check(
+                    fixture_text("human_long").encode("utf-8"), replayer, destination
+                )
+                self.assertEqual(code, pangram.EXIT_PASS)
+                self.assertEqual(len(replayer.posts()), 1)
+
+
+class RouteCommandLineTests(unittest.TestCase):
+    """The guard as a process: flag parsing and what each mode requires."""
+
+    def setUp(self):
+        self.config = TempConfig()
+        self.addCleanup(self.config.cleanup)
+        empty_path = pathlib.Path(self.config.directory.name) / "empty-bin"
+        empty_path.mkdir()
+        # Empty PATH and a temp HOME, as in CommandLineTests: no real `op`,
+        # `security`, or route-command is reachable from here.
+        self.env = {
+            "PATH": str(empty_path),
+            "HOME": self.config.directory.name,
+            "XDG_CONFIG_HOME": self.config.directory.name,
+        }
+
+    def router(self, body: str) -> FakeRouter:
+        fake = FakeRouter(self.config, body)
+        self.addCleanup(fake.cleanup)
+        return fake
+
+    def run_cli(self, args, stdin=LONG_TEXT):
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            check=False,
+            input=stdin,
+            capture_output=True,
+            env=self.env,
+            timeout=30,
+        )
+
+    def test_exempt_exits_not_needed_with_a_one_line_message(self):
+        self.router(router_printing("exempt", "2"))
+        result = self.run_cli(["--repo", "someone/elsewhere"])
+        self.assertEqual(result.returncode, pangram.EXIT_NOT_NEEDED)
+        self.assertEqual(json.loads(result.stdout)["status"], "NOT_NEEDED")
+        self.assertIn(
+            b"route exempt (rule 2): no Pangram check needed", result.stderr
+        )
+        self.assertFalse(self.config.checks().exists())
+
+    def test_visual_exits_not_needed(self):
+        self.router(router_printing("visual", "3"))
+        result = self.run_cli(["--dir", "/x", "--kind", "commit"])
+        self.assertEqual(result.returncode, pangram.EXIT_NOT_NEEDED)
+        self.assertIn(b"route visual (rule 3): no Pangram check needed", result.stderr)
+
+    def test_pangram_route_reaches_key_resolution(self):
+        # With no key anywhere, reaching the key lookup is the proof that the
+        # guard let the text through. No request can be made without a key.
+        self.router(router_printing("pangram", "1"))
+        result = self.run_cli(["--repo", "beacon-biosignals/x"])
+        self.assertEqual(result.returncode, pangram.EXIT_UNAVAILABLE)
+        self.assertIn("no Pangram API key", json.loads(result.stdout)["error"])
+
+    def test_missing_destination_is_refused_before_the_key(self):
+        self.router(router_printing("pangram"))
+        result = self.run_cli([])
+        self.assertEqual(result.returncode, pangram.EXIT_UNAVAILABLE)
+        error = json.loads(result.stdout)["error"]
+        self.assertIn("no destination", error)
+        self.assertNotIn("API key", error)
+
+    def test_destination_flags_are_accepted_without_a_route_command(self):
+        result = self.run_cli(["--dir", "/x", "--kind", "pr"], stdin=b"Too short.")
+        self.assertEqual(result.returncode, pangram.EXIT_SKIPPED)
+
+    def test_check_key_needs_no_destination(self):
+        self.router("exit 9")
+        result = self.run_cli(["--check-key"], stdin=b"")
+        self.assertEqual(result.returncode, pangram.EXIT_UNAVAILABLE)
+        self.assertIn("no Pangram API key", json.loads(result.stdout)["error"])
+
+    def test_install_key_needs_no_destination(self):
+        self.router("exit 9")
+        result = self.run_cli(["--install-key"], stdin=b"")
+        self.assertEqual(result.returncode, pangram.EXIT_UNAVAILABLE)
+        self.assertIn(b"op read", result.stderr)
+        self.assertNotIn(b"destination", result.stderr)
+
+    def test_malformed_flags_are_usage_errors(self):
+        self.router(router_printing("exempt"))
+        for args in (
+            ["--repo"],
+            ["--repo", ""],
+            ["--repo", "a/b", "--repo", "c/d"],
+            ["--kind", "copy", "extra"],
+            ["--check-key", "--repo", "a/b"],
+        ):
+            with self.subTest(args=args):
+                result = self.run_cli(args)
+                self.assertEqual(result.returncode, pangram.EXIT_UNAVAILABLE)
+
+    def test_exit_codes_are_distinct_including_not_needed(self):
+        codes = [
+            pangram.EXIT_PASS,
+            pangram.EXIT_FAIL,
+            pangram.EXIT_FAIL_MIXED,
+            pangram.EXIT_SKIPPED,
+            pangram.EXIT_UNAVAILABLE,
+            pangram.EXIT_NOT_NEEDED,
+        ]
+        self.assertEqual(len(set(codes)), len(codes))
+        self.assertNotIn(1, codes)
+
+
 if __name__ == "__main__":
     unittest.main()
