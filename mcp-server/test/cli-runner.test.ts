@@ -454,6 +454,46 @@ describe("runPersonify", () => {
     );
   });
 
+  it("skips the key preflight when the route keeps the text from Pangram", async () => {
+    checkPangramKeyMock.mockResolvedValue({
+      kind: "missing",
+      error: "no Pangram API key found.",
+    });
+    for (const route of [
+      { state: "not_needed", outcome: "visual", rule: "3" },
+      { state: "no_destination" },
+    ]) {
+      spawnMock.mockReset();
+      checkPangramKeyMock.mockClear();
+      lookupRouteMock.mockResolvedValue(route);
+      const { child, promise, body } = await start("t", {
+        destination: { repo: "someone/else" },
+      });
+      await writeFile(body, "Draft.\n");
+      child.emit("close", 0);
+      expect((await promise).kind).toBe("not_verified");
+      expect(checkPangramKeyMock).not.toHaveBeenCalled();
+    }
+  });
+
+  it("still runs the key preflight when the route asks for a check", async () => {
+    lookupRouteMock.mockResolvedValue({ state: "check" });
+    checkPangramKeyMock.mockResolvedValue({
+      kind: "missing",
+      error: "no Pangram API key found.",
+    });
+    const outcome = await runPersonify("t", {
+      installedPluginsPath: installed,
+      env,
+      destination: { repo: "beacon-biosignals/x" },
+    });
+    expect(outcome).toEqual({
+      kind: "failed",
+      error: "no Pangram API key found.",
+    });
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
   it("adds no note when the route asked for a check", async () => {
     lookupRouteMock.mockResolvedValue({ state: "check" });
     const { child, promise, body } = await start("t", {

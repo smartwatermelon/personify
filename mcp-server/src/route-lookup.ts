@@ -42,8 +42,10 @@ export async function lookupRoute(
   let raw: string;
   try {
     raw = await readFile(join(configRoot(env), "route-command"), "utf8");
-  } catch {
-    return { state: "off" };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT")
+      return { state: "off" };
+    return { state: "unknown", error: `cannot read route-command: ${err}` };
   }
   if (!hasDestination(destination)) return { state: "no_destination" };
 

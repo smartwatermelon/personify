@@ -87,4 +87,11 @@ describe("lookupRoute", () => {
     await router("printf 'exempt\\t2\\tx\\n'", 0o644);
     expect((await lookupRoute(env, { repo: "a/b" })).state).toBe("unknown");
   });
+
+  it("is unknown, not off, when route-command exists but cannot be read", async () => {
+    await mkdir(join(root, "xdg", "personify", "route-command"), {
+      recursive: true,
+    });
+    expect((await lookupRoute(env, { repo: "a/b" })).state).toBe("unknown");
+  });
 });

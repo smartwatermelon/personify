@@ -140,14 +140,17 @@ export async function runPersonify(
     };
   }
 
-  const key = await checkPangramKey(install.scriptPath, env);
-  if (key.kind === "missing") return { kind: "failed", error: key.error };
+  // A run the route keeps away from Pangram needs no key, so skip that check.
+  const route = await lookupRoute(env, destination);
+  if (route.state !== "not_needed" && route.state !== "no_destination") {
+    const key = await checkPangramKey(install.scriptPath, env);
+    if (key.kind === "missing") return { kind: "failed", error: key.error };
+  }
 
   const token = await loadOAuthToken({ tokenPath: opts.tokenPath });
   if (!token.ok) return { kind: "failed", error: token.error };
 
   const root = configRoot(env);
-  const route = await lookupRoute(env, destination);
   // realpath matters on macOS, where the temp dir sits behind a /var symlink
   // and a permission rule naming the unresolved path may not match.
   const dir = await realpath(await mkdtemp(join(tmpdir(), "personify-")));
