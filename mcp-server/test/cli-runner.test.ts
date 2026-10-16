@@ -28,6 +28,11 @@ vi.mock("../src/key-preflight.js", () => ({
   checkPangramKey: (...args: unknown[]) => checkPangramKeyMock(...args),
 }));
 
+const lookupRouteMock = vi.fn();
+vi.mock("../src/route-lookup.js", () => ({
+  lookupRoute: (...args: unknown[]) => lookupRouteMock(...args),
+}));
+
 const { runPersonify, parseReport, DEFAULT_TIMEOUT_MS } =
   await import("../src/cli-runner.js");
 
@@ -65,6 +70,8 @@ beforeEach(async () => {
   loadOAuthTokenMock.mockReset();
   checkPangramKeyMock.mockReset();
   checkPangramKeyMock.mockResolvedValue({ kind: "ok" });
+  lookupRouteMock.mockReset();
+  lookupRouteMock.mockResolvedValue({ state: "off" });
   loadOAuthTokenMock.mockResolvedValue({
     ok: true,
     token: "sk-ant-oat01-test",
@@ -104,7 +111,13 @@ async function stamp(bytes: Buffer) {
 }
 
 // Starts a run, waits for the spawn, and returns the child and its argv.
-async function start(text = "some text", opts: { timeoutMs?: number } = {}) {
+async function start(
+  text = "some text",
+  opts: {
+    timeoutMs?: number;
+    destination?: { repo?: string; dir?: string; kind?: string };
+  } = {},
+) {
   const child = makeFakeChild();
   spawnMock.mockReturnValue(child);
   const promise = runPersonify(text, {
@@ -382,6 +395,75 @@ describe("runPersonify", () => {
     await writeFile(body, "Draft.\n");
     child.emit("close", 0);
     expect((await promise).kind).toBe("not_verified");
+  });
+
+  it("passes the destination flags into the CLI instruction", async () => {
+    const { child, promise, args } = await start("t", {
+      destination: { repo: "beacon-biosignals/x", kind: "pr" },
+    });
+    expect(args[1]).toContain("--kind pr --repo beacon-biosignals/x");
+    expect(lookupRouteMock).toHaveBeenCalledWith(env, {
+      repo: "beacon-biosignals/x",
+      kind: "pr",
+    });
+    child.emit("close", 1);
+    await promise;
+  });
+
+  it("fails before spawning on a malformed destination", async () => {
+    const outcome = await runPersonify("t", {
+      installedPluginsPath: installed,
+      env,
+      destination: { dir: "relative" },
+    });
+    expect(outcome.kind).toBe("failed");
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("says Pangram did not run when the route needs a destination and none was given", async () => {
+    lookupRouteMock.mockResolvedValue({ state: "no_destination" });
+    const { child, promise, body } = await start();
+    await writeFile(body, "Rewritten draft.\n");
+    child.stdout.emit("data", Buffer.from(json("Check refused.")));
+    child.emit("close", 0);
+    const outcome = await promise;
+    expect(outcome).toMatchObject({
+      kind: "not_verified",
+      draft: "Rewritten draft.\n",
+      report: "Check refused.",
+    });
+    expect(outcome.kind === "not_verified" && outcome.note).toContain(
+      "Pangram not run: no destination given",
+    );
+  });
+
+  it("says no check was needed when the route is exempt", async () => {
+    lookupRouteMock.mockResolvedValue({
+      state: "not_needed",
+      outcome: "exempt",
+      rule: "2",
+    });
+    const { child, promise, body } = await start("t", {
+      destination: { repo: "someone/else" },
+    });
+    await writeFile(body, "Draft.\n");
+    child.emit("close", 0);
+    const outcome = await promise;
+    expect(outcome.kind === "not_verified" && outcome.note).toContain(
+      "no Pangram check needed for this destination (route exempt, rule 2)",
+    );
+  });
+
+  it("adds no note when the route asked for a check", async () => {
+    lookupRouteMock.mockResolvedValue({ state: "check" });
+    const { child, promise, body } = await start("t", {
+      destination: { repo: "beacon-biosignals/x" },
+    });
+    await writeFile(body, "Draft.\n");
+    child.emit("close", 0);
+    const outcome = await promise;
+    expect(outcome.kind).toBe("not_verified");
+    expect(outcome).not.toHaveProperty("note");
   });
 
   it("keeps the 180s budget", () => {

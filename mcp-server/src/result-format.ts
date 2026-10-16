@@ -14,6 +14,7 @@ export const OUTPUT_SCHEMA = {
     text: { type: "string" },
     report: { type: "string" },
     draft: { type: "string" },
+    note: { type: "string" },
     error: { type: "string" },
     sha256: { type: "string" },
     task_id: { type: "string" },
@@ -60,12 +61,16 @@ export function formatResult(
     // Not an error: a draft awaiting review is a normal result, and isError
     // invites the calling model to retry, which would be a second submission.
     // The label is in the content on purpose, since content reaches the reader.
+    // A note keeps the NOT VERIFIED prefix, which the tool description keys on.
+    const headline = outcome.note
+      ? `NOT VERIFIED: ${outcome.note}`
+      : NOT_VERIFIED_LINE;
     return {
       isError: false,
       content: [
         {
           type: "text",
-          text: `${NOT_VERIFIED_LINE}\n\n${outcome.report}\n\n${fence(outcome.draft)}`,
+          text: `${headline}\n\n${outcome.report}\n\n${fence(outcome.draft)}`,
         },
         ...noteBlock,
       ],
@@ -74,6 +79,7 @@ export function formatResult(
         report: outcome.report,
         draft: outcome.draft,
         sha256: outcome.sha256,
+        ...(outcome.note ? { note: outcome.note } : {}),
         ...staleness,
       },
     };

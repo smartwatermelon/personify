@@ -4,6 +4,29 @@ import { formatResult, NOT_VERIFIED_LINE } from "../src/result-format.js";
 const sha = "a".repeat(64);
 
 describe("formatResult", () => {
+  it("puts a route note in place of the default line, keeping the NOT VERIFIED prefix", () => {
+    const r = formatResult(
+      {
+        kind: "not_verified",
+        draft: "d",
+        sha256: "a".repeat(64),
+        report: "r",
+        note: "Pangram not run: no destination given.",
+      },
+      null,
+    );
+    const first = (r.content[0] as { text: string }).text;
+    expect(
+      first.startsWith("NOT VERIFIED: Pangram not run: no destination given."),
+    ).toBe(true);
+    expect(r.isError).toBe(false);
+    expect(r.structuredContent).toMatchObject({
+      outcome: "not_verified",
+      note: "Pangram not run: no destination given.",
+      draft: "d",
+    });
+  });
+
   it("returns only the verified bytes in the first block", () => {
     const r = formatResult(
       { kind: "verified", text: "Final.\n", sha256: sha, taskId: "t" },

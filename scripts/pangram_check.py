@@ -27,12 +27,15 @@ two hashes match only when stdin IS that file. `echo "$text" | pangram_check.py`
 appends a trailing newline, changing the hash, and the stamp then matches
 nothing. A pass earned that way silently fails to authorize the publish.
 
+Flags --repo, --dir, --kind name the destination for route_guard.
+
 Exit codes:
     0  PASS         verdict Human; a stamp was written
     2  FAIL         verdict AI
     3  FAIL_MIXED   verdict Mixed
     4  SKIPPED      under the 40-word floor; no verdict, no stamp
     5  UNAVAILABLE  no secret, transport failure, STAGE_FAILED, bad usage
+    6  NOT_NEEDED   route needs no check; no call, no record
 
 Every result (0, 2, 3, 4) also writes a check record to
 checks/<sha256>.json. An error before a verdict (5) writes none.
@@ -66,6 +69,14 @@ EXIT_FAIL = 2
 EXIT_FAIL_MIXED = 3
 EXIT_SKIPPED = 4
 EXIT_UNAVAILABLE = 5
+EXIT_NOT_NEEDED = 6
+
+# The route guard. Only this outcome reaches the API; the other two known ones
+# mean no check is needed, and anything else fails closed.
+ROUTE_PANGRAM = "pangram"
+ROUTE_NOT_NEEDED = ("visual", "exempt")
+ROUTE_TIMEOUT_SECONDS = 15
+DESTINATION_FLAGS = ("--kind", "--repo", "--dir")
 
 # Below this many words the detector is not reliable in either direction. At
 # 15 words a measured sample of AI-written prose came back Human at 1.0, so a
@@ -388,6 +399,110 @@ def install_key(
     )
 
 
+def route_command_path(env: dict[str, str]) -> Path:
+    return config_root(env) / "route-command"
+
+
+def has_destination(destination: dict[str, str] | None) -> bool:
+    if not destination:
+        return False
+    if destination.get("repo") or destination.get("dir"):
+        return True
+    return destination.get("kind") == "copy"
+
+
+def route_guard(
+    env: dict[str, str], destination: dict[str, str] | None
+) -> dict | None:
+    """Run `<route-command> route [flags]`; None means submit.
+
+    The router prints outcome<TAB>rule<TAB>reason. No config file: None.
+    pangram: None. visual or exempt: a NOT_NEEDED report. Anything else
+    raises CheckError, so an unclear route never submits.
+    """
+    config = route_command_path(env)
+    try:
+        raw = config.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError as err:
+        raise CheckError(f"could not read the route config {config}: {err}")
+
+    lines = raw.strip().splitlines()
+    command = lines[0].strip() if lines else ""
+    if len(lines) > 1 or not os.path.isabs(command):
+        raise CheckError(
+            f"{config} must hold one line, the absolute path of the route "
+            "command. Nothing was submitted."
+        )
+    if not (os.path.isfile(command) and os.access(command, os.X_OK)):
+        raise CheckError(
+            f"the route command {command} named in {config} is not an "
+            "executable file. Nothing was submitted."
+        )
+
+    if not has_destination(destination):
+        raise CheckError(
+            "no destination given, and the route guard needs one to decide "
+            "whether to check. Pass --repo owner/name or --dir <checkout>, or "
+            "--kind copy for public copy. Nothing was submitted."
+        )
+
+    args = [command, "route"]
+    for flag in DESTINATION_FLAGS:
+        value = destination.get(flag[2:]) if destination else None
+        if value:
+            args += [flag, value]
+
+    try:
+        result = subprocess.run(
+            args,
+            check=False,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=ROUTE_TIMEOUT_SECONDS,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        raise CheckError(
+            f"the route command timed out after {ROUTE_TIMEOUT_SECONDS}s. "
+            "Nothing was submitted."
+        )
+    except OSError as err:
+        raise CheckError(f"could not run the route command {command}: {err}")
+
+    if result.returncode != 0:
+        detail = result.stderr.strip()[:400]
+        raise CheckError(
+            f"the route command exited {result.returncode}. Nothing was "
+            f"submitted. {detail}".strip()
+        )
+    out_lines = result.stdout.splitlines()
+    if not out_lines or not out_lines[0].strip():
+        raise CheckError("the route command gave no output. Nothing was submitted.")
+    fields = out_lines[0].split("\t")
+    outcome = fields[0].strip()
+    rule = fields[1].strip() if len(fields) > 1 else ""
+    reason = fields[2].strip() if len(fields) > 2 else ""
+
+    if outcome == ROUTE_PANGRAM:
+        return None
+    if outcome in ROUTE_NOT_NEEDED:
+        return {
+            "status": "NOT_NEEDED",
+            "verdict": None,
+            "route": outcome,
+            "rule": rule,
+            "reason": reason,
+            "message": f"route {outcome} (rule {rule}): no Pangram check needed",
+        }
+    raise CheckError(
+        f"unknown route outcome {outcome!r} from the route command. Nothing "
+        "was submitted."
+    )
+
+
 def urllib_request(api_key: str) -> Callable[[str, str, dict | None], dict]:
     """Build the real transport. Tests inject a replayer instead of patching."""
 
@@ -706,8 +821,12 @@ def check(
     env: dict[str, str] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], datetime] | None = None,
+    destination: dict[str, str] | None = None,
 ) -> tuple[int, dict]:
     """Classify one artifact and return (exit code, report).
+
+    `destination` holds any of "repo", "dir" and "kind", for the route guard.
+    It matters only when a route-command file exists.
 
     `raw` is the exact bytes that will publish. The hash is taken over those
     bytes before any decoding or stripping, because the hook hashes the same
@@ -717,7 +836,14 @@ def check(
     env = dict(os.environ) if env is None else env
     clock = now or (lambda: datetime.now(timezone.utc))
 
+    # Route first: a text that needs no check then touches no key, network,
+    # or disk.
+    not_needed = route_guard(env, destination)
     digest = hashlib.sha256(raw).hexdigest()
+    if not_needed is not None:
+        not_needed["sha256"] = digest
+        return EXIT_NOT_NEEDED, not_needed
+
     decoded = raw.decode("utf-8", errors="replace")
     submitted = strip_markup(decoded)
     words = word_count(submitted)
@@ -817,7 +943,8 @@ def main(argv: list[str] | None = None) -> int:
         code, message = install_key()
         print(f"pangram_check: {message}", file=sys.stderr)
         return code
-    if argv:
+    destination = parse_destination(argv)
+    if destination is None:
         print(__doc__, file=sys.stderr)
         return EXIT_UNAVAILABLE
 
@@ -825,7 +952,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         # The key is resolved lazily, on the first request, so that a text
         # under the word floor skips without needing a credential at all.
-        code, report = check(raw, request=lazy_request(env), env=env)
+        code, report = check(
+            raw, request=lazy_request(env), env=env, destination=destination
+        )
     except CheckError as err:
         print(json.dumps({"status": "UNAVAILABLE", "error": str(err)}, indent=2))
         print(f"pangram_check: {err}", file=sys.stderr)
@@ -838,7 +967,29 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_UNAVAILABLE
 
     print(json.dumps(report, indent=2))
+    if code == EXIT_NOT_NEEDED:
+        print(f"pangram_check: {report['message']}", file=sys.stderr)
     return code
+
+
+def parse_destination(argv: list[str]) -> dict[str, str] | None:
+    """Parse destination flags; None on any malformed argv.
+
+    Not argparse: its error exit is 2, which is EXIT_FAIL here.
+    """
+    destination: dict[str, str] = {}
+    index = 0
+    while index < len(argv):
+        flag = argv[index]
+        if flag not in DESTINATION_FLAGS or index + 1 >= len(argv):
+            return None
+        value = argv[index + 1]
+        name = flag[2:]
+        if not value or name in destination:
+            return None
+        destination[name] = value
+        index += 2
+    return destination
 
 
 if __name__ == "__main__":

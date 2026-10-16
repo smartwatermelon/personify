@@ -35,6 +35,18 @@ describe("handlePersonifyCall", () => {
     expect(runPersonifyMock).toHaveBeenCalledWith("raw");
   });
 
+  it("passes a destination through to the runner", async () => {
+    runPersonifyMock.mockResolvedValue({
+      kind: "verified",
+      text: "t",
+      sha256: sha,
+    });
+    await handlePersonifyCall("raw", { kind: "copy" });
+    expect(runPersonifyMock).toHaveBeenCalledWith("raw", {
+      destination: { kind: "copy" },
+    });
+  });
+
   it("returns verified text alone in the first block", async () => {
     runPersonifyMock.mockResolvedValue({
       kind: "verified",
@@ -111,6 +123,12 @@ describe("handlePersonifyCall", () => {
 });
 
 describe("TOOL_DESCRIPTION", () => {
+  it("tells the model to pass the destination", () => {
+    for (const field of ['"dir"', '"repo"', '"kind"', "copy"]) {
+      expect(TOOL_DESCRIPTION).toContain(field);
+    }
+  });
+
   it("covers both the final and the NOT VERIFIED branch", () => {
     expect(TOOL_DESCRIPTION).toContain("NOT VERIFIED");
     expect(TOOL_DESCRIPTION).toContain("exactly as returned");
