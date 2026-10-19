@@ -1,7 +1,7 @@
 ---
 name: personify
-version: 2.2.0
-description: Draft in your own register, then check the result against a detector before sending, publishing, or shipping it. Use when editing text (emails, docs, comments, PRs, blog drafts, essays) someone else will read. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Submits the result to Pangram and stops when the verdict is not Human, rather than editing toward a score. Also carries the structural rules for GitHub PR descriptions and code comments, which no detector can see. Derivative of blader/humanizer (MIT); see license field.
+version: 2.2.1
+description: Draft prose in your own voice. Use for blog posts, site or app copy, and other public-facing text, or when the commit hook asks for a check. Not needed for commit, PR or issue text in exempt repos. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Where the route needs a check, submits the result to Pangram and stops when the verdict is not Human, rather than editing toward a score. Also carries the structural rules for GitHub PR descriptions and code comments, which no detector can see. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
 
@@ -301,7 +301,10 @@ docstring cap in Length caps does.
 ## The check
 
 After the rewrite, and after it is inside its length cap, submit the result to
-Pangram and let the verdict decide whether it goes out. Pangram runs only on
+Pangram and let the verdict decide whether it goes out. Only a destination the
+route gates needs this; an exempt one returns exit 6 and needs nothing more, so
+do not run the check pre-emptively on commit, PR or issue text the commit hook
+has not asked about. Pangram runs only on
 text over the 40-word floor. Under the caps that is mostly PR descriptions:
 most commit bodies and comments fall below it and skip.
 
@@ -356,8 +359,8 @@ reinserted, because the client never edits: the original bytes are what
 publishes.
 
 Every run that reaches a result, pass, fail, or skip, writes a check record to
-`~/.config/personify/checks/<sha256>.json`. The review gate's `stage` step
-refuses a file that has no record, so the check must run on the exact bytes
+`~/.config/personify/checks/<sha256>.json`. On a destination the gate routes to
+Pangram, the review gate's `stage` step refuses a file that has no record, so the check must run on the exact bytes
 being staged before anyone is asked to approve them, and the batch header shows
 each item's result while the reviewer reads. The gate enforces that the check
 ran, not what it said: a failing verdict still reaches the reviewer, as a
