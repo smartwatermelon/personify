@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "personify",
-  "description": "Draft in your own register, then check the result against the Pangram detector before it's sent, published, or shipped. Carries the structural rules for PR descriptions and code comments that no detector can see.",
-  "version": "2.2.0",
+  "description": "Draft prose in your own voice, for blog posts, site or app copy, and other public-facing text, with a Pangram check where the route needs one. Carries the structural rules for PR descriptions and code comments that no detector can see.",
+  "version": "2.2.1",
   "author": {
     "name": "twistedmelonman",
     "url": "https://github.com/twistedmelonman"

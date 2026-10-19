@@ -10,7 +10,7 @@
     {
       "name": "personify",
       "source": "./",
-      "description": "Strip AI-writing tells from prose before it's sent, published, or shipped, without flattening it into voiceless generic writing.",
+      "description": "Draft public-facing prose in your own voice, without AI-writing tells and without flattening it into voiceless generic writing.",
       "license": "MIT",
       "keywords": [
         "writing",
