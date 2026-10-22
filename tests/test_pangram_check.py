@@ -1094,6 +1094,43 @@ class RouteGuardTests(unittest.TestCase):
             fake.argv(), ["route", "--kind", "commit", "--dir", "/some/checkout"]
         )
 
+    def test_review_route_makes_no_call_and_writes_no_record(self):
+        # The gate's only gated route since 2026-10-22. It must never submit.
+        fake = self.router(router_printing("review", "9"))
+        replayer = Replayer([fixture_json("human_long")])
+        code, report = self.run_check(
+            fixture_text("human_long").encode("utf-8"),
+            replayer,
+            {"repo": "beacon-biosignals/thing", "kind": "pr"},
+        )
+        self.assertEqual(code, pangram.EXIT_NOT_NEEDED)
+        self.assertEqual(report["route"], "review")
+        self.assertEqual(report["rule"], "9")
+        self.assert_untouched(replayer)
+        self.assertEqual(
+            fake.argv(), ["route", "--kind", "pr", "--repo", "beacon-biosignals/thing"]
+        )
+
+    def test_review_route_never_resolves_a_key(self):
+        self.router(router_printing("review"))
+        with mock.patch.object(pangram, "resolve_key") as resolve:
+            code, _ = pangram.check(
+                LONG_TEXT,
+                request=pangram.lazy_request(dict(self.config.env)),
+                env=dict(self.config.env),
+                sleep=no_sleep,
+                destination={"kind": "copy"},
+            )
+        self.assertEqual(code, pangram.EXIT_NOT_NEEDED)
+        resolve.assert_not_called()
+
+    def test_only_the_literal_pangram_route_submits(self):
+        # Near misses of "pangram" are unknown routes: refused, never sent.
+        for outcome in ("Pangram", "pangram-review", "reviewed", "PANGRAM"):
+            with self.subTest(outcome=outcome):
+                self.router(router_printing(outcome))
+                self.assert_refused({"repo": "a/b"}, "unknown route outcome")
+
     def test_exempt_short_text_writes_no_skip_record(self):
         self.router(router_printing("exempt"))
         replayer = Replayer([])
@@ -1241,6 +1278,13 @@ class RouteCommandLineTests(unittest.TestCase):
         self.assertIn(
             b"route exempt (rule 2): no Pangram check needed", result.stderr
         )
+        self.assertFalse(self.config.checks().exists())
+
+    def test_review_exits_not_needed(self):
+        self.router(router_printing("review", "9"))
+        result = self.run_cli(["--repo", "beacon-biosignals/x", "--kind", "pr"])
+        self.assertEqual(result.returncode, pangram.EXIT_NOT_NEEDED)
+        self.assertIn(b"route review (rule 9): no Pangram check needed", result.stderr)
         self.assertFalse(self.config.checks().exists())
 
     def test_visual_exits_not_needed(self):

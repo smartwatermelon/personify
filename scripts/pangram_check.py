@@ -71,10 +71,10 @@ EXIT_SKIPPED = 4
 EXIT_UNAVAILABLE = 5
 EXIT_NOT_NEEDED = 6
 
-# The route guard. Only this outcome reaches the API; the other two known ones
-# mean no check is needed, and anything else fails closed.
+# Only the literal route "pangram" reaches the API. review (2026-10-22),
+# visual, exempt and unknown routes make no call.
 ROUTE_PANGRAM = "pangram"
-ROUTE_NOT_NEEDED = ("visual", "exempt")
+ROUTE_NOT_NEEDED = ("review", "visual", "exempt")
 ROUTE_TIMEOUT_SECONDS = 15
 DESTINATION_FLAGS = ("--kind", "--repo", "--dir")
 
@@ -417,8 +417,8 @@ def route_guard(
     """Run `<route-command> route [flags]`; None means submit.
 
     The router prints outcome<TAB>rule<TAB>reason. No config file: None.
-    pangram: None. visual or exempt: a NOT_NEEDED report. Anything else
-    raises CheckError, so an unclear route never submits.
+    pangram: None. review, visual or exempt: a NOT_NEEDED report. Anything
+    else raises CheckError, so only the literal route pangram ever submits.
     """
     config = route_command_path(env)
     try:
