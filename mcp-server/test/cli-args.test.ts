@@ -2,9 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildCliArgs,
   buildInstruction,
-  destinationFlags,
-  hasDestination,
-  validateDestination,
+  validateKind,
 } from "../src/cli-args.js";
 
 const base = {
@@ -32,7 +30,7 @@ describe("buildCliArgs", () => {
   // rules below, not by a blanket rule that would also expose the token.
   it("allows the path and realpath of a symlinked voice guide", () => {
     expect(buildCliArgs(base).slice(5)).toEqual([
-      "Bash(python3 /plug/2.0.0/scripts/pangram_check.py:*)",
+      "Bash(python3 /plug/2.0.0/scripts/length_check.py:*)",
       "Read(//plug/2.0.0/**)",
       "Read(//repo/link.md)",
       "Read(//repo/real.md)",
@@ -47,7 +45,7 @@ describe("buildCliArgs", () => {
       voiceGuide: { path: "/repo/real.md", realpath: "/repo/real.md" },
     }).slice(5);
     expect(rules).toEqual([
-      "Bash(python3 /plug/2.0.0/scripts/pangram_check.py:*)",
+      "Bash(python3 /plug/2.0.0/scripts/length_check.py:*)",
       "Read(//plug/2.0.0/**)",
       "Read(//repo/real.md)",
       "Read(//private/tmp/p-1/body.md)",
@@ -58,7 +56,7 @@ describe("buildCliArgs", () => {
   it("omits both voice guide rules when no guide resolved", () => {
     const rules = buildCliArgs({ ...base, voiceGuide: null }).slice(5);
     expect(rules).toEqual([
-      "Bash(python3 /plug/2.0.0/scripts/pangram_check.py:*)",
+      "Bash(python3 /plug/2.0.0/scripts/length_check.py:*)",
       "Read(//plug/2.0.0/**)",
       "Read(//private/tmp/p-1/body.md)",
       "Edit(//private/tmp/p-1/body.md)",
@@ -110,57 +108,22 @@ describe("buildInstruction", () => {
   });
 });
 
-describe("destination passthrough", () => {
-  it("names the destination flags in the instruction", () => {
-    const flags = destinationFlags({
-      repo: "beacon-biosignals/x",
-      dir: "/src/x",
-      kind: "pr",
-    });
-    expect(flags).toEqual([
-      "--kind",
-      "pr",
-      "--repo",
-      "beacon-biosignals/x",
-      "--dir",
-      "/src/x",
-    ]);
-    const args = buildCliArgs({
-      installPath: "/opt/p",
-      voiceGuide: null,
-      bodyPath: "/private/tmp/p-1/body.md",
-      destinationFlags: flags,
-    });
-    expect(args[1]).toContain(
-      "--kind pr --repo beacon-biosignals/x --dir /src/x",
-    );
+describe("kind passthrough", () => {
+  it("names the kind and its length-check flag in the instruction", () => {
+    const args = buildCliArgs({ ...base, voiceGuide: null, kind: "pr" });
+    expect(args[1]).toBe(buildInstruction(base.bodyPath, "pr"));
+    expect(args[1]).toContain("--kind pr");
   });
 
-  it("leaves the instruction unchanged with no destination", () => {
-    expect(buildInstruction("/b.md", [])).toBe(buildInstruction("/b.md"));
+  it("leaves the instruction without a kind when none is given", () => {
     expect(buildInstruction("/b.md")).not.toContain("--");
   });
 
-  it("rejects values that could break out of the command", () => {
-    expect(validateDestination({ repo: "a/b; rm x" })).toMatch(/repo/);
-    expect(validateDestination({ repo: "noslash" })).toMatch(/repo/);
-    expect(validateDestination({ dir: "relative/path" })).toMatch(/dir/);
-    expect(validateDestination({ dir: "/a b" })).toMatch(/dir/);
-    expect(validateDestination({ dir: "/a$(x)" })).toMatch(/dir/);
-    expect(validateDestination({ kind: "PR --x" })).toMatch(/kind/);
-    expect(
-      validateDestination({
-        repo: "o/n",
-        dir: "/a/b-c_d.e",
-        kind: "pr-comment",
-      }),
-    ).toBeNull();
-  });
-
-  it("counts --kind copy alone as a destination, any other kind not", () => {
-    expect(hasDestination({ kind: "copy" })).toBe(true);
-    expect(hasDestination({ kind: "pr" })).toBe(false);
-    expect(hasDestination({ dir: "/x" })).toBe(true);
-    expect(hasDestination({})).toBe(false);
+  it("rejects a kind that could break out of the command", () => {
+    expect(validateKind("PR --x")).toMatch(/kind/);
+    expect(validateKind("pr; rm x")).toMatch(/kind/);
+    expect(validateKind("")).toMatch(/kind/);
+    expect(validateKind("pr-comment")).toBeNull();
+    expect(validateKind("copy")).toBeNull();
   });
 });

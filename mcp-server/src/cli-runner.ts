@@ -2,24 +2,13 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  buildCliArgs,
-  destinationFlags,
-  validateDestination,
-} from "./cli-args.js";
+import { buildCliArgs, validateKind } from "./cli-args.js";
 import { locateInstall } from "./install-locator.js";
-import { checkPangramKey } from "./key-preflight.js";
-import { configRoot, resolveVoiceGuide } from "./paths.js";
-import { lookupRoute, type RouteLookup } from "./route-lookup.js";
-import { checkStamp } from "./stamp-verifier.js";
+import { resolveVoiceGuide } from "./paths.js";
 import { loadOAuthToken } from "./token.js";
-import type { Destination, Outcome } from "./types.js";
+import type { Outcome } from "./types.js";
 
-// One draft plus one Pangram check. Measured at 30 to 40 s on 2026-09-22.
-// The check script can poll for about 220 s at worst. The CLI's Bash tool
-// limit follows BASH_DEFAULT_TIMEOUT_MS from the user's settings (300 s on
-// the maintainer's machine); when that is 180 s or more, this budget fires
-// first. Every limit here fails closed.
+// One cold CLI start and one model draft. A timeout fails closed.
 export const DEFAULT_TIMEOUT_MS = 180_000;
 
 export type RunOptions = {
@@ -27,24 +16,8 @@ export type RunOptions = {
   tokenPath?: string;
   installedPluginsPath?: string;
   env?: NodeJS.ProcessEnv;
-  destination?: Destination;
+  kind?: string;
 };
-
-// What to tell the reader when no stamp landed and the route explains why.
-// The skill's own check makes the same decision; this only labels it.
-export function routeNote(route: RouteLookup): string | undefined {
-  if (route.state === "no_destination")
-    return (
-      "Pangram not run: no destination given. Pass repo, dir, or kind so " +
-      "the route can decide whether this text needs a check."
-    );
-  if (route.state === "not_needed")
-    return (
-      `no Pangram check needed for this destination (route ` +
-      `${route.outcome}, rule ${route.rule}). Review it before sending.`
-    );
-  return undefined;
-}
 
 type ChildResult =
   | { kind: "exited"; code: number | null; stdout: string; stderr: string }
@@ -52,7 +25,7 @@ type ChildResult =
   | { kind: "spawn_error"; message: string };
 
 // --output-format json puts the model's final message in `result`. It is
-// only ever shown as a report; the outcome is decided by the file and stamp.
+// only ever shown as a failure report; the returned text is the file.
 export function parseReport(stdout: string): string {
   try {
     const parsed = JSON.parse(stdout);
@@ -125,9 +98,10 @@ export async function runPersonify(
     return { kind: "failed", error: "no text provided" };
   }
   const env = opts.env ?? process.env;
-  const destination = opts.destination ?? {};
-  const invalid = validateDestination(destination);
-  if (invalid) return { kind: "failed", error: invalid };
+  if (opts.kind !== undefined) {
+    const invalid = validateKind(opts.kind);
+    if (invalid) return { kind: "failed", error: invalid };
+  }
 
   const install = await locateInstall(opts.installedPluginsPath);
   if (!install) {
@@ -135,22 +109,13 @@ export async function runPersonify(
       kind: "failed",
       error:
         "the personify plugin is not installed, or its install has no " +
-        "scripts/pangram_check.py. Install it with " +
-        "/plugin install personify@personify.",
+        "SKILL.md. Install it with /plugin install personify@personify.",
     };
-  }
-
-  // A run the route keeps away from Pangram needs no key, so skip that check.
-  const route = await lookupRoute(env, destination);
-  if (route.state !== "not_needed" && route.state !== "no_destination") {
-    const key = await checkPangramKey(install.scriptPath, env);
-    if (key.kind === "missing") return { kind: "failed", error: key.error };
   }
 
   const token = await loadOAuthToken({ tokenPath: opts.tokenPath });
   if (!token.ok) return { kind: "failed", error: token.error };
 
-  const root = configRoot(env);
   // realpath matters on macOS, where the temp dir sits behind a /var symlink
   // and a permission rule naming the unresolved path may not match.
   const dir = await realpath(await mkdtemp(join(tmpdir(), "personify-")));
@@ -160,7 +125,7 @@ export async function runPersonify(
       installPath: install.installPath,
       voiceGuide: await resolveVoiceGuide(env),
       bodyPath,
-      destinationFlags: destinationFlags(destination),
+      ...(opts.kind ? { kind: opts.kind } : {}),
     });
     const child = await runChild(
       args,
@@ -191,9 +156,9 @@ export async function runPersonify(
       };
     }
 
-    let bytes: Buffer;
+    let draft: string;
     try {
-      bytes = await readFile(bodyPath);
+      draft = await readFile(bodyPath, "utf8");
     } catch {
       return {
         kind: "failed",
@@ -201,24 +166,14 @@ export async function runPersonify(
         ...(report ? { report } : {}),
       };
     }
-
-    const stamp = await checkStamp(bytes, join(root, "stamps"));
-    if (stamp.verified) {
+    if (draft.trim().length === 0) {
       return {
-        kind: "verified",
-        text: bytes.toString("utf8"),
-        sha256: stamp.sha256,
-        ...(stamp.taskId ? { taskId: stamp.taskId } : {}),
+        kind: "failed",
+        error: "the CLI wrote an empty draft",
+        ...(report ? { report } : {}),
       };
     }
-    const note = routeNote(route);
-    return {
-      kind: "not_verified",
-      draft: bytes.toString("utf8"),
-      sha256: stamp.sha256,
-      report,
-      ...(note ? { note } : {}),
-    };
+    return { kind: "rewritten", text: draft };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "personify",
-  "description": "Draft prose in your own voice, for blog posts, site or app copy, and other public-facing text, with a Pangram check where the route needs one. Carries the structural rules for PR descriptions and code comments that no detector can see.",
-  "version": "2.2.1",
+  "description": "Draft prose in your own voice, for blog posts, site or app copy, and other public-facing text. A style and voice advisor that carries the length caps and the structural rules for PR descriptions and code comments.",
+  "version": "3.0.0",
   "author": {
     "name": "twistedmelonman",
     "url": "https://github.com/twistedmelonman"
@@ -10,6 +10,6 @@
   "homepage": "https://github.com/twistedmelonman/personify",
   "repository": "https://github.com/twistedmelonman/personify",
   "license": "MIT",
-  "keywords": ["writing", "editing", "ai-detection", "prose", "style", "skill"],
+  "keywords": ["writing", "editing", "voice", "prose", "style", "skill"],
   "skills": ["./"]
 }

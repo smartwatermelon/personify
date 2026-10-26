@@ -72,25 +72,22 @@ describe("MCP SDK smoke test (real Server + real Client, in-process transport)",
     expect(result.tools[0].inputSchema.required).toEqual(["text"]);
   });
 
-  it("advertises text plus optional destination inputs, and an output schema", async () => {
+  it("advertises text plus an optional kind, and an output schema", async () => {
     const client = await connectedClient();
     const result = await client.listTools();
     const tool = result.tools[0];
     expect(Object.keys(tool.inputSchema.properties ?? {})).toEqual([
       "text",
-      "repo",
-      "dir",
       "kind",
     ]);
     expect(tool.inputSchema.required).toEqual(["text"]);
     expect(tool.outputSchema?.required).toEqual(["outcome"]);
   });
 
-  it("passes repo, dir, and kind through to the runner", async () => {
+  it("passes kind through to the runner and ignores the old repo and dir", async () => {
     runPersonifyMock.mockResolvedValue({
-      kind: "verified",
+      kind: "rewritten",
       text: "t",
-      sha256: "c".repeat(64),
     });
     checkPersonifyVersionMock.mockResolvedValue({ stale: false });
     const client = await connectedClient();
@@ -103,16 +100,13 @@ describe("MCP SDK smoke test (real Server + real Client, in-process transport)",
         kind: "pr",
       },
     });
-    expect(runPersonifyMock).toHaveBeenCalledWith("raw text", {
-      destination: { repo: "beacon-biosignals/x", dir: "/src/x", kind: "pr" },
-    });
+    expect(runPersonifyMock).toHaveBeenCalledWith("raw text", { kind: "pr" });
   });
 
-  it("calls the runner with the text alone when no destination is given", async () => {
+  it("calls the runner with the text alone when no kind is given", async () => {
     runPersonifyMock.mockResolvedValue({
-      kind: "verified",
+      kind: "rewritten",
       text: "t",
-      sha256: "c".repeat(64),
     });
     checkPersonifyVersionMock.mockResolvedValue({ stale: false });
     const client = await connectedClient();
@@ -120,11 +114,11 @@ describe("MCP SDK smoke test (real Server + real Client, in-process transport)",
     expect(runPersonifyMock).toHaveBeenCalledWith("raw");
   });
 
-  it("rejects a destination that is not a string", async () => {
+  it("rejects a kind that is not a string", async () => {
     const client = await connectedClient();
     const result = await client.callTool({
       name: "personify",
-      arguments: { text: "raw", repo: 7 },
+      arguments: { text: "raw", kind: 7 },
     });
     expect(result.isError).toBe(true);
     expect(runPersonifyMock).not.toHaveBeenCalled();
@@ -132,9 +126,8 @@ describe("MCP SDK smoke test (real Server + real Client, in-process transport)",
 
   it("calls the personify tool over a real handshake and gets a real result", async () => {
     runPersonifyMock.mockResolvedValue({
-      kind: "verified",
+      kind: "rewritten",
       text: "clean text",
-      sha256: "c".repeat(64),
     });
     checkPersonifyVersionMock.mockResolvedValue({ stale: false });
     const client = await connectedClient();
@@ -149,7 +142,7 @@ describe("MCP SDK smoke test (real Server + real Client, in-process transport)",
     const content = result.content as Array<{ type: string; text: string }>;
     expect(content[0].text).toContain("clean text");
     expect(result.structuredContent).toMatchObject({
-      outcome: "verified",
+      outcome: "rewritten",
       text: "clean text",
     });
   });
@@ -171,27 +164,5 @@ describe("MCP SDK smoke test (real Server + real Client, in-process transport)",
     expect(result.isError).toBe(true);
     const content = result.content as Array<{ type: string; text: string }>;
     expect(content[0].text).toContain("skill not found");
-  });
-
-  it("round-trips a not-verified result through the client's schema validation", async () => {
-    runPersonifyMock.mockResolvedValue({
-      kind: "not_verified",
-      draft: "D.",
-      sha256: "d".repeat(64),
-      report: "AI.",
-    });
-    checkPersonifyVersionMock.mockResolvedValue({ stale: false });
-    const client = await connectedClient();
-    await client.listTools();
-    const result = await client.callTool({
-      name: "personify",
-      arguments: { text: "raw" },
-    });
-    expect(result.isError).toBeFalsy();
-    expect(result.structuredContent).toMatchObject({
-      outcome: "not_verified",
-      report: "AI.",
-      draft: "D.",
-    });
   });
 });

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { configRoot, resolveVoiceGuide } from "../src/paths.js";
 
 describe("configRoot", () => {
-  it("uses XDG_CONFIG_HOME when set, like pangram_check.py", () => {
+  it("uses XDG_CONFIG_HOME when set", () => {
     expect(configRoot({ XDG_CONFIG_HOME: "/xdg" })).toBe("/xdg/personify");
   });
 

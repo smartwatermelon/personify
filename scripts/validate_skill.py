@@ -116,8 +116,8 @@ def validate(root: Path) -> list[str]:
                     "They must match exactly."
                 )
 
-    # The structural rules Pangram cannot see live in their own file, because
-    # they survive independently of any detector.
+    # The structural rules live in their own file, because they hold
+    # whatever else the skill drops.
     structure_path = root / "rules" / "structure.md"
     if not structure_path.exists():
         failures.append("rules/structure.md not found")

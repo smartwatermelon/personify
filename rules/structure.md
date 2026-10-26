@@ -4,11 +4,11 @@ Two surfaces have a defined shape rather than a preferred voice: a GitHub pull
 request description, and a block of code comments. Both rules are universal.
 They apply to every writer on every repo, and they outrank the voice guide.
 
-**These rules exist because a detector cannot see them.** Pangram scores how
-machine-written prose reads. It will pass a PR description carrying ceremonial
-headers, bolded labels, and a "ready to merge upon approval" sign-off, as long
-as the sentences themselves read human. Structure is invisible to it, so
-structure is enforced here instead.
+**These rules exist because a prose score cannot see them.** Anything that
+scores how machine-written prose reads will pass a PR description carrying
+ceremonial headers, bolded labels, and a "ready to merge upon approval"
+sign-off, as long as the sentences themselves read human. Structure is
+invisible to it, so structure is enforced here instead.
 
 `SKILL.md` is canonical for both rules and carries the worked examples. This
 file is the compact statement of the same rules, for a caller that needs them

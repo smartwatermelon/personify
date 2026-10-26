@@ -12,14 +12,7 @@
       "source": "./",
       "description": "Draft public-facing prose in your own voice, without AI-writing tells and without flattening it into voiceless generic writing.",
       "license": "MIT",
-      "keywords": [
-        "writing",
-        "editing",
-        "ai-detection",
-        "prose",
-        "style",
-        "skill"
-      ]
+      "keywords": ["writing", "editing", "voice", "prose", "style", "skill"]
     }
   ]
 }

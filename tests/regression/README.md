@@ -1,13 +1,13 @@
 # Regression set
 
-Two fixed cases covering the rules Pangram cannot enforce. Both exercise a
+Two fixed cases covering the structural rules no prose score can enforce. Both exercise a
 universal surface rule rather than a prose quality: `ceremonial-pr-description`
 and `over-commented-code`.
 
 These are the cases that survive 2.0, and the reason is the detector's blind
-spot. Pangram scores how prose reads, so it will pass a pull request
-description carrying ceremonial headers, bolded labels, and a merge-readiness
-sign-off, as long as the sentences themselves read human. Structure is
+spot. A detector scores how prose reads. Take a pull request description
+with ceremonial headers, bolded labels, and a merge-readiness sign-off. A
+detector passes it if the sentences themselves read human. Structure is
 invisible to it. A rule nothing measures is a rule that quietly stops firing, so
 these two get pinned down here.
 
@@ -55,8 +55,8 @@ case by hand, or by dispatching a subagent per case:
    which case update `expected-arm-a.md` and `checks.md` in the same commit that
    changes `SKILL.md`, and say why in the commit message.
 
-Running the Pangram check on these inputs is not the test and does not replace
-it. A rewrite can score Human and still carry a header.
+Scoring how these outputs read is not the test and does not replace it. A
+rewrite can read as human and still carry a header.
 
 ## When to run it
 

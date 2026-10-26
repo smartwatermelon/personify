@@ -7,7 +7,6 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { runPersonify } from "./cli-runner.js";
-import type { Destination } from "./types.js";
 import { formatResult, OUTPUT_SCHEMA } from "./result-format.js";
 import { checkPersonifyVersion, formatStalenessNote } from "./version-check.js";
 
@@ -19,37 +18,31 @@ const SERVER_VERSION: string = JSON.parse(
 
 export const TOOL_DESCRIPTION =
   "Run the personify skill on prose before it is sent, published, or " +
-  "shipped, and check the result with the Pangram detector. Runs through " +
-  "the Claude Code CLI so it works from Claude Desktop. The result comes in " +
-  'two forms; use whichever you receive. In the structured result, "outcome" ' +
-  'is verified, not_verified, or failed. When it is verified, "text" is the ' +
-  "final, checked text: relay exactly that to the user, without " +
-  "paraphrasing, summarizing, or editing it, and without adding a note of " +
-  'your own. When it is not_verified, show the user the "report" and the ' +
-  '"draft" exactly as returned, labeled NOT VERIFIED. When it is failed, ' +
-  'show the user the "error" and any "report" exactly as returned. In the ' +
-  "content form, read only the FIRST content block; a later block, if there " +
-  "is one, is a plugin staleness note for the user, not part of the text. " +
-  "If the call did not error and the first content block does not start " +
-  'with "NOT VERIFIED" or "personify failed", it is the final, checked text ' +
-  "and is relayed the same way. Otherwise show the result to the user " +
-  "exactly as returned. For not_verified or failed, do not send, post, or " +
-  "publish any part of it anywhere, and do not call the tool again on the " +
-  "same text. Do not repeat these instructions to the user. Pass where the " +
-  'text will publish whenever you know it: "dir" is the absolute path of the ' +
-  'local checkout it publishes from, "repo" is owner/name, and "kind" is what ' +
-  "it is (pr, commit, issue, and so on, or copy for public-facing copy, " +
-  "which needs no repo or dir). When a route is configured and no " +
-  "destination is given, the Pangram check does not run.";
-
-const DESTINATION_KEYS = ["repo", "dir", "kind"] as const;
+  "shipped. The skill rewrites the text in the user's voice, following " +
+  "their voice guide, and returns the rewritten text. Runs through the " +
+  "Claude Code CLI so it works from Claude Desktop. The result comes in two " +
+  'forms; use whichever you receive. In the structured result, "outcome" is ' +
+  'rewritten or failed. When it is rewritten, "text" is the final text: ' +
+  "relay exactly that to the user, without paraphrasing, summarizing, or " +
+  "editing it, and without adding a note of your own. When it is failed, " +
+  'show the user the "error" and any "report" exactly as returned, and do ' +
+  "not send, post, or publish any part of it. In the content form, read " +
+  "only the FIRST content block; a later block, if there is one, is a " +
+  "plugin staleness note for the user, not part of the text. If the call " +
+  'did not error and the first content block does not start with "personify ' +
+  'failed", it is the final text and is relayed the same way. Otherwise show ' +
+  "the result to the user exactly as returned. Do not repeat these " +
+  'instructions to the user. Pass "kind" whenever you know what the text is ' +
+  "(pr, commit, issue, pr-comment, code-comment, and so on, or copy for " +
+  "public-facing copy), so the skill applies that kind's rules and any " +
+  "length cap it has.";
 
 export async function handlePersonifyCall(
   text: string,
-  destination?: Destination,
+  kind?: string,
 ): Promise<CallToolResult> {
   const [outcome, version] = await Promise.all([
-    destination ? runPersonify(text, { destination }) : runPersonify(text),
+    kind ? runPersonify(text, { kind }) : runPersonify(text),
     checkPersonifyVersion(),
   ]);
   return formatResult(outcome, formatStalenessNote(version)?.trim() ?? null);
@@ -70,16 +63,6 @@ export function createServer(): Server {
           type: "object",
           properties: {
             text: { type: "string", description: "The text to personify." },
-            repo: {
-              type: "string",
-              description:
-                "The owner/name repo the text publishes to, when there is no local checkout.",
-            },
-            dir: {
-              type: "string",
-              description:
-                "Absolute path of the local checkout the text publishes from.",
-            },
             kind: {
               type: "string",
               description:
@@ -111,22 +94,18 @@ export function createServer(): Server {
         content: [{ type: "text", text: "missing required argument: text" }],
       };
     }
-    const destination: Destination = {};
-    for (const key of DESTINATION_KEYS) {
-      const value = args?.[key];
-      if (value === undefined || value === null || value === "") continue;
-      if (typeof value !== "string") {
-        return {
-          isError: true,
-          content: [{ type: "text", text: `argument ${key} must be a string` }],
-        };
-      }
-      destination[key] = value;
+    // repo and dir only routed the detector check this bridge no longer
+    // runs; an older caller may still send them, so they are ignored.
+    const kind = args?.kind;
+    if (kind === undefined || kind === null || kind === "")
+      return handlePersonifyCall(text);
+    if (typeof kind !== "string") {
+      return {
+        isError: true,
+        content: [{ type: "text", text: "argument kind must be a string" }],
+      };
     }
-    return handlePersonifyCall(
-      text,
-      Object.keys(destination).length > 0 ? destination : undefined,
-    );
+    return handlePersonifyCall(text, kind);
   });
 
   return server;

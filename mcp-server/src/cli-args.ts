@@ -1,53 +1,24 @@
-import type { Destination } from "./types.js";
-
-// Names the publish file and any destination flags; restates no SKILL.md
-// rule.
-export function buildInstruction(
-  bodyPath: string,
-  destinationFlags: string[] = [],
-): string {
-  const flags =
-    destinationFlags.length > 0
-      ? " When you run the check, pass these destination flags to " +
-        `pangram_check.py exactly as written: ${destinationFlags.join(" ")}.`
-      : "";
+// Names the publish file and, when known, the kind of text; restates no
+// SKILL.md rule.
+export function buildInstruction(bodyPath: string, kind?: string): string {
+  const kindLine = kind
+    ? ` The text is a ${kind}. Apply that kind's rules, and if ` +
+      `length_check.py accepts --kind ${kind}, check the file with it.`
+    : "";
   return (
     "Run the personify:personify skill on the text provided via stdin. " +
-    `The file this text publishes from is ${bodyPath}. Write your final ` +
-    "text to that file, then follow the skill's check against it." +
-    flags
+    `Write your final text to ${bodyPath}, and nothing else to that file.` +
+    kindLine
   );
 }
 
-// Values land in a prompt, then a shell command: no quotes or spaces.
-const REPO_SHAPE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const DIR_SHAPE = /^\/[A-Za-z0-9_.\/@+-]*$/;
+// The kind lands in a prompt, then a shell command: no quotes or spaces.
 const KIND_SHAPE = /^[a-z][a-z-]*$/;
 
-export function validateDestination(dest: Destination): string | null {
-  if (dest.repo !== undefined && !REPO_SHAPE.test(dest.repo))
-    return `repo must look like owner/name: ${JSON.stringify(dest.repo)}`;
-  if (dest.dir !== undefined && !DIR_SHAPE.test(dest.dir))
-    return (
-      "dir must be an absolute path of letters, digits, and . _ / @ + - " +
-      `only: ${JSON.stringify(dest.dir)}`
-    );
-  if (dest.kind !== undefined && !KIND_SHAPE.test(dest.kind))
-    return `kind must be a lowercase word such as pr or copy: ${JSON.stringify(dest.kind)}`;
+export function validateKind(kind: string): string | null {
+  if (!KIND_SHAPE.test(kind))
+    return `kind must be a lowercase word such as pr or copy: ${JSON.stringify(kind)}`;
   return null;
-}
-
-// Same order as gate-review.sh route: --kind, --repo, --dir.
-export function destinationFlags(dest: Destination): string[] {
-  const flags: string[] = [];
-  if (dest.kind) flags.push("--kind", dest.kind);
-  if (dest.repo) flags.push("--repo", dest.repo);
-  if (dest.dir) flags.push("--dir", dest.dir);
-  return flags;
-}
-
-export function hasDestination(dest: Destination): boolean {
-  return Boolean(dest.repo || dest.dir || dest.kind === "copy");
 }
 
 export type VoiceGuideInput = { path: string; realpath: string };
@@ -56,7 +27,7 @@ export type CliArgsInput = {
   installPath: string;
   voiceGuide: VoiceGuideInput | null;
   bodyPath: string;
-  destinationFlags?: string[];
+  kind?: string;
 };
 
 // Every rule here was measured on 2026-09-22 (see the spec). Under --print,
@@ -92,18 +63,18 @@ export function buildCliArgs(input: CliArgsInput): string[] {
       ]
     : [];
   const rules = [
-    `Bash(python3 ${input.installPath}/scripts/pangram_check.py:*)`,
+    `Bash(python3 ${input.installPath}/scripts/length_check.py:*)`,
     `Read(/${input.installPath}/**)`,
     ...voiceRules,
-    // The check reads the file through a `< body.md` redirect, which the CLI
-    // checks as a Read; Edit alone let the model write it but not check it.
+    // The length check reads the file through a `< body.md` redirect, which
+    // the CLI checks as a Read; Edit alone lets the model write it only.
     `Read(/${input.bodyPath})`,
     `Edit(/${input.bodyPath})`,
   ];
   // The prompt must come before --allowedTools, which is variadic.
   return [
     "--print",
-    buildInstruction(input.bodyPath, input.destinationFlags),
+    buildInstruction(input.bodyPath, input.kind),
     "--output-format",
     "json",
     "--allowedTools",

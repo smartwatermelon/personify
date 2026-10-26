@@ -1,29 +1,24 @@
 ---
 name: personify
-version: 2.2.1
-description: Draft prose in your own voice. Use for blog posts, site or app copy, and other public-facing text, or when the commit hook asks for a check. Not needed for commit, PR or issue text in exempt repos. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Where the route needs a check, submits the result to Pangram and stops when the verdict is not Human, rather than editing toward a score. Also carries the structural rules for GitHub PR descriptions and code comments, which no detector can see. Derivative of blader/humanizer (MIT); see license field.
+version: 3.0.0
+description: Draft prose in your own voice. Use for blog posts, site or app copy, and other public-facing text. Not needed for routine commit, PR or issue text unless asked. Reads an optional per-user voice guide (VOICE.md) and treats it as authoritative, so output sounds like a specific person rather than generically clean. Also carries the length caps and the structural rules for GitHub PR descriptions and code comments. Derivative of blader/humanizer (MIT); see license field.
 license: MIT (derivative of blader/humanizer; see Provenance)
 ---
 
 # Personify
 
-Write text that does not read as machine-written, then verify that claim against
-a detector instead of asserting it.
+Write text that does not read as machine-written, in the writer's own voice.
 
-This is the 2.0 break, and it is a large one. Version 1.x carried a lettered
-taxonomy of AI-writing tells, an A/B harness that ran two rule sets against every
-text, a blind reviewer, and an evidence corpus. All of it is gone. What replaces
-it: draft in the writer's own register guided by their voice guide, apply current
-model judgment about what reads as machine-written, then submit the result to
-Pangram's detector. A Human verdict passes. Anything else stops and reports.
+This skill is a style and voice advisor. It does not certify anything. Version
+1.x carried a lettered taxonomy of AI-writing tells, an A/B harness, a blind
+reviewer, and an evidence corpus; 2.0 deleted all of it. 2.x then sent every
+result to a commercial AI-text detector and stopped on any verdict but Human;
+3.0 deletes that too. What is left: draft in the writer's own register guided by
+their voice guide, apply current model judgment about what reads as
+machine-written, keep the result inside its length cap, and return it.
 
 Two failure modes to avoid equally: leaving AI tells in, and over-correcting into
 generic dryness that has no writer behind it.
-
-One consequence, stated up front because it will surprise a caller. A draft
-written by a model and edited by a model still reads as model-written, and the
-detector says so. Most Claude-drafted artifacts fail this check. That is the
-expected result, not a malfunction.
 
 ## Step 0: Load the voice guide first
 
@@ -68,11 +63,11 @@ below.
 7. Name the actor. If a sentence describes a judgment or an action, say who made
    or did it.
 
-Rule 3 carries the most weight in 2.0. There is no automated edit step left to
-police, but the rule governs the human-directed rewrite that replaces it, and
-that rewrite is where invented specifics are cheapest. Any process that edits
-toward a detector with no fact constraint will fabricate personal texture,
-because invented detail is the easiest way to move a score.
+Rule 3 carries the most weight. There is no automated edit step left to police,
+but the rule governs every rewrite, and a rewrite is where invented specifics
+are cheapest. A rewrite that chases a voice with no fact constraint will
+fabricate personal texture, because invented detail is the easiest way to sound
+like someone.
 
 ## The judgment instruction
 
@@ -126,16 +121,14 @@ Run the checker first, on the file the text will publish from:
 
 For `commit`, the first line of the file is the title. Exit 0 means every part
 is inside its cap. Exit 1 means at least one part is over, and the output says
-by how much. Rewrite shorter and run it again. Do this yourself, before the
-Pangram check and before anything is staged. Exit 5 means bad usage or an
-internal error.
+by how much. Rewrite shorter and run it again. Do this yourself, before
+anything is staged. Exit 5 means bad usage or an internal error.
 
 Before committing, check your own staged comments and docstrings with
 `git diff --cached -U0 --no-color | python3 <skill-dir>/scripts/length_check.py --diff`.
 
-This is a loop, and the section The check, below, forbids an edit loop. The two differ: a
-length count is deterministic, so rewriting toward it converges. The detector
-is neither, so rewriting toward it does not.
+This is a loop, and it converges: a length count is deterministic, so each
+rewrite toward it gets closer.
 
 ## GitHub PR descriptions
 
@@ -151,10 +144,9 @@ reopens a header, a bullet, a bolded label, or a dash on this surface. Step 0's
 voice guide still sets word choice, sentence rhythm, and how blunt the sentences
 are; it does not set the structure.
 
-**The detector cannot see any of this.** Pangram scores how the prose reads, so
-it will pass a description carrying ceremonial headers and a merge-readiness
-sign-off as long as the sentences read human. Structure is enforced here or
-nowhere. `rules/structure.md` carries the same rules in compact form for a caller
+**Structure is enforced here or nowhere.** Anything that scores how prose reads
+will pass a description carrying ceremonial headers and a merge-readiness
+sign-off, as long as the sentences read human. `rules/structure.md` carries the same rules in compact form for a caller
 that needs them without the rest of this file.
 
 **Hard format.** No headers. No bold. No bullets. No numbered lists. No em
@@ -253,7 +245,7 @@ Y"), hard rule 7 applies in full and the "I" goes back in.
 ## Code comments
 
 Also a universal rule that outranks the voice guide, on the same terms as the PR
-description section above, and equally invisible to the detector.
+description section above.
 
 The ratio of comment lines to code lines is never more than 1:1, and should be
 far lower. At most one comment per logical block, and only where an informed
@@ -298,149 +290,6 @@ They are reference material and take the neutral register under Technical
 content above. The 1:1 ratio does not apply to them, but the 280-character
 docstring cap in Length caps does.
 
-## The check
-
-After the rewrite, and after it is inside its length cap, submit the result to
-Pangram and let the verdict decide whether it goes out. Only a destination the
-route gates needs this; an exempt one returns exit 6 and needs nothing more, so
-do not run the check pre-emptively on commit, PR or issue text the commit hook
-has not asked about. Pangram runs only on
-text over the 40-word floor. Under the caps that is mostly PR descriptions:
-most commit bodies and comments fall below it and skip.
-
-The client is `scripts/pangram_check.py` in this skill's own directory, the one
-holding this SKILL.md, never the user's working directory. The plugin installs
-into a version-pinned directory and the text being edited usually lives in some
-other repo, so a path resolved against the working directory finds nothing.
-
-1. **Draft**, guided by the voice guide and the rules above.
-2. **Write the result to the file it will publish from.** The same file `git
-   commit -F` or `gh pr create --body-file` will read.
-3. **Run the check by redirecting that file into stdin, and name where the
-   text is going:**
-
-       python3 <skill-dir>/scripts/pangram_check.py --dir <checkout> < body.md
-
-   The destination is `--dir` with the checkout the text publishes from, or
-   `--repo owner/name` when it goes to a repo with no local checkout. Add
-   `--kind <kind>` when the kind is known (`commit`, `pr`, `issue`, and so on),
-   and pass `--kind copy` on its own for an extract of public-facing copy.
-   Without a route command configured the flags change nothing. With one, at
-   `~/.config/personify/route-command`, a run with no destination is refused,
-   and only a destination that needs a check reaches Pangram.
-
-   The redirect is load-bearing. The client keys its stamp to the sha256 of the
-   bytes stdin delivers, and a hook later hashes the same file. `echo "$text" |
-   pangram_check.py` appends a trailing newline, which changes the hash, so the
-   stamp matches nothing and a pass earned that way authorizes nothing.
-
-4. **Read the exit code**, not the prose:
-
-   | Code | Meaning | What to do |
-   |---|---|---|
-   | 0 | PASS, verdict Human, stamp written | Proceed. |
-   | 2 | FAIL, verdict AI | Stop and report. |
-   | 3 | FAIL_MIXED, verdict Mixed | Stop and report. |
-   | 4 | SKIPPED, under the 40-word floor | Report as skipped, never as passed. |
-   | 5 | UNAVAILABLE | See the next section. |
-   | 6 | NOT_NEEDED, the route says no check is needed | Proceed without a check. |
-
-   Exit 6 is a decision, not a failure. Nothing was submitted and nothing was
-   recorded, because this destination does not need a check. Do not retry it,
-   do not rerun it with a different destination to get a check, and do not
-   look for another way to submit the text. Proceed as that destination's own
-   rules say.
-
-The client strips frontmatter, fenced and indented code, HTML tags, images, and
-heading, blockquote, and bullet markers before submitting, and the word count for
-the floor is measured on what survives. A 30-word PR body wrapped around a
-200-word stack trace skips rather than classifying the trace. Nothing stripped is
-reinserted, because the client never edits: the original bytes are what
-publishes.
-
-Every run that reaches a result, pass, fail, or skip, writes a check record to
-`~/.config/personify/checks/<sha256>.json`. On a destination the gate routes to
-Pangram, the review gate's `stage` step refuses a file that has no record, so the check must run on the exact bytes
-being staged before anyone is asked to approve them, and the batch header shows
-each item's result while the reviewer reads. The gate enforces that the check
-ran, not what it said: a failing verdict still reaches the reviewer, as a
-reason to act. On a pass the client also writes a stamp to
-`~/.config/personify/stamps/<sha256>.json` carrying the task id, the model, the
-verdict, and the word count, and the Desktop bridge decides from that stamp. A
-run that fails before a verdict writes neither, so the file cannot be staged
-until a check succeeds.
-
-Report the word count and the estimated cost from the JSON on stdout. At the
-production model this is five cents per started hundred words, so a 400-word
-text costs about twenty cents, and printing it makes an accidental expensive
-run visible immediately.
-
-**The model is Pangram 4, pinned by name as `pangram-4`, and the client sends
-it without being asked.** The `default` alias is not used: it pointed at
-Pangram 3.3.2 until that model retired on 2026-09-30, then at Pangram 4 at ten
-times the per-word price for long texts, so the bill would have changed with
-the date. `PANGRAM_MODEL` overrides the pin; a model other than `pangram-4`
-reports no cost estimate, because its price is not known here.
-
-### There is no edit loop, and do not add one
-
-**Exactly one submission per artifact.** Never auto-edit after a failing verdict
-and never resubmit edited text expecting a different answer. A retry happens only
-on a transport error, never on a result.
-
-This was measured rather than assumed, and the measurement is the reason the rule
-exists. One Claude-assisted post was edited twice toward the voice guide with
-every fact preserved. The score went 0.990, then 0.989, then 1.000: the second
-rewrite scored worse than the original. Across all three rounds the humanizer
-score stayed near zero, between 0.007 and 0.016, which means the text was never
-caught as adversarially humanized. It simply still read as AI-written, because it
-was.
-
-So a non-Human verdict is not an instruction to edit harder. After one, stop and
-report the verdict. Do not rewrite and resubmit on your own, even from scratch: a
-fresh draft of the same content is the same artifact, and submitting it again is
-the loop this section rules out. Two paths follow, and both belong to the human
-rather than to the agent:
-
-- **Rewrite from the source material**, not from the draft. Go back to the facts
-  and write the artifact again.
-- **Route to manual review**, which is where an unresolved verdict belongs.
-
-The instinct to add a loop back is strong, and every version of it has been
-tried. Editing does not move the verdict.
-
-## When the check is unavailable
-
-Exit code 5 covers every case where no verdict exists: no API key resolved, a
-transport failure, a rejected key, an account out of credits, or a task that
-came back failed. When a route command is configured it also covers a missing
-destination and a route command that failed, timed out, or gave an answer it
-does not know. Exit code 4 covers text under the 40-word floor.
-
-**Fail closed in every one of them.** Route the text to manual review and say
-which case fired. The JSON on stdout names it.
-
-**Never report a skip or an outage as a pass.** Below 40 words the detector
-produces false passes in the dangerous direction: a measured sample of AI-written
-prose at 15 words came back Human at 1.0. That is why the floor is double the
-measured boundary. A short text is routed by the surface's own rules and never
-stamped as verified.
-
-The client resolves its key from `PANGRAM_API_KEY`, then the macOS login
-Keychain item `personify-pangram-key`, then `~/.config/personify/pangram-key`
-at mode 600, then `op read`. An explicitly exported key wins as a deliberate
-override. The Keychain and the file have to exist as sources because a
-headless caller gets neither an environment nor a TTY.
-
-When no key resolves, say so plainly and give the install command, which
-copies the key from 1Password into the Keychain once, from a terminal:
-
-```bash
-python3 <skill dir>/scripts/pangram_check.py --install-key
-```
-
-`--check-key` reports whether a key resolves, without a network call.
-
 ## What NOT to flag
 
 The job is removing what reads as machine-written, not sanding every text down to
@@ -477,8 +326,8 @@ sentence:
 - Contractions, and the shorter word over the more precise one when the precision
   is not doing work
 
-This is the half a detector cannot help with. Pangram tells you the prose reads
-machine-written; it does not tell you the writer is missing.
+This is the half no rule list can check. A text can avoid every tell and still
+have no writer behind it.
 
 ## Technical content
 
@@ -495,9 +344,9 @@ This skill started as a fork-in-spirit of [blader/humanizer](https://github.com/
 
 Version 1.x built on that start: a hand-maintained lettered taxonomy of 22 groups lettered across the range A to Z, with retired letters left as gaps, a two-arm harness that ran the taxonomy against unaided model judgment on every text, a blind reviewer that picked a winner, and an evidence corpus feeding a consolidation command that proposed rule changes. The taxonomy grew every time a new tell got spotted.
 
-**2.0 deletes all of it.** The reason is that the growth stopped paying for itself. The rules were usually ignored in favor of the judgment instruction that sat beside them, and maintaining the list was work that did not improve output. The replacement thesis: stop encoding what AI writing looks like and measure it instead, letting an external classifier hold the line the rule list was trying to hold.
+**2.0 deletes all of it.** The reason is that the growth stopped paying for itself. The rules were usually ignored in favor of the judgment instruction that sat beside them, and maintaining the list was work that did not improve output. The 2.x thesis: stop encoding what AI writing looks like and measure it instead, letting a commercial AI-text detector hold the line the rule list was trying to hold.
 
-Three measurements made that switch defensible, all taken 2026-09-21 against Pangram:
+Three measurements made that switch defensible, all taken 2026-09-21 against that detector:
 
 Nine posts from one writer split correctly. Every pre-2024 post scored Human at 1.0 and every 2026 post scored AI at 1.0, and the author confirmed the 2026 posts were the model-assisted ones. That retired the standing worry that a genuinely distinctive human register would be flagged as machine-written: the detector was not flagging how he writes.
 
@@ -505,8 +354,10 @@ Editing toward the detector does not converge. Two rounds of rewriting a model-a
 
 The detector is unreliable below 20 words and produces false passes there, so the floor sits at 40, double the measured boundary.
 
-The two surface sections that survive, GitHub PR descriptions and Code comments, came from Andrew on 2026-09-17 as a specification rather than as a diagnosis of flagged writing. Both are universal rules and both outrank the voice guide, which is otherwise authoritative here. They survive 2.0 for a reason the rest of the taxonomy did not: they are structural, and a detector that scores prose cannot see structure at all. It will pass a ceremonial PR description whose sentences read human. `rules/structure.md` carries them in compact form.
+The two surface sections that survive, GitHub PR descriptions and Code comments, came from Andrew on 2026-09-17 as a specification rather than as a diagnosis of flagged writing. Both are universal rules and both outrank the voice guide, which is otherwise authoritative here. They survive 2.0 for a reason the rest of the taxonomy did not: they are structural, and anything that scores prose cannot see structure at all. It will pass a ceremonial PR description whose sentences read human. `rules/structure.md` carries them in compact form.
 
 The register-specific content that 1.x kept here (work register, task boards, PR review comments) belongs in the voice guide instead, where content rules about what a message should say belong. That move is a separate edit to a personal, gitignored file and is not part of this change. Those rules were never detector-judgeable either, but they are personal rather than universal, which is the difference.
 
-This file does not track upstream version changes. The writer's own judgment about what reads as machine-written is the source of truth, checked against the detector rather than against any published list.
+**3.0 deletes the detector.** Each check cost money, and by 2.2 its verdict decided nothing: a failing result still went to the human reviewer, so the check only proved it had run. The second measurement above already ruled out editing toward it. Length caps, which are deterministic, and the writer's own review are what remain.
+
+This file does not track upstream version changes. The writer's own judgment about what reads as machine-written is the source of truth, not any published list.
