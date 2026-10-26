@@ -41,18 +41,17 @@ describe("install locator", () => {
     expect(await readInstalledEntry(installed)).toBeNull();
   });
 
-  it("locates the check script when it exists", async () => {
+  it("locates the install when its SKILL.md exists", async () => {
     await writeInstalled({ installPath, version: "2.0.0" });
-    await mkdir(join(installPath, "scripts"), { recursive: true });
-    await writeFile(join(installPath, "scripts", "pangram_check.py"), "");
+    await mkdir(installPath, { recursive: true });
+    await writeFile(join(installPath, "SKILL.md"), "");
     expect(await locateInstall(installed)).toEqual({
       installPath,
       version: "2.0.0",
-      scriptPath: join(installPath, "scripts", "pangram_check.py"),
     });
   });
 
-  it("returns null when the script is missing", async () => {
+  it("returns null when SKILL.md is missing", async () => {
     await writeInstalled({ installPath, version: "2.0.0" });
     expect(await locateInstall(installed)).toBeNull();
   });

@@ -1,6 +1,6 @@
 {
   "name": "@twistedmelonman/personify-mcp",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "MCP bridge that lets Claude Desktop run the personify skill via the Claude Code CLI",
   "type": "module",
   "main": "dist/index.js",

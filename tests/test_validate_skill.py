@@ -6,7 +6,7 @@ repo root is full of group references on Andrew's machine and absent in CI, so
 an rglob scan would fail locally and pass remotely. Testing against a real
 repo is the only way to exercise the path that ships.
 
-Stdlib unittest, per tests/test_pangram_check.py, because CI runs
+Stdlib unittest, because CI runs
 python3 -m unittest discover.
 """
 

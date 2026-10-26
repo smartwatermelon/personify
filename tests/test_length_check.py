@@ -1,6 +1,6 @@
 """Tests for scripts/length_check.py.
 
-Stdlib unittest, per tests/test_pangram_check.py, because CI runs
+Stdlib unittest, because CI runs
 python3 -m unittest discover.
 """
 

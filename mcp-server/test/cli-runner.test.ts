@@ -12,7 +12,6 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
 
 const spawnMock = vi.fn();
 vi.mock("node:child_process", () => ({
@@ -21,16 +20,6 @@ vi.mock("node:child_process", () => ({
 const loadOAuthTokenMock = vi.fn();
 vi.mock("../src/token.js", () => ({
   loadOAuthToken: (...args: unknown[]) => loadOAuthTokenMock(...args),
-}));
-
-const checkPangramKeyMock = vi.fn();
-vi.mock("../src/key-preflight.js", () => ({
-  checkPangramKey: (...args: unknown[]) => checkPangramKeyMock(...args),
-}));
-
-const lookupRouteMock = vi.fn();
-vi.mock("../src/route-lookup.js", () => ({
-  lookupRoute: (...args: unknown[]) => lookupRouteMock(...args),
 }));
 
 const { runPersonify, parseReport, DEFAULT_TIMEOUT_MS } =
@@ -68,18 +57,14 @@ let env: NodeJS.ProcessEnv;
 beforeEach(async () => {
   spawnMock.mockReset();
   loadOAuthTokenMock.mockReset();
-  checkPangramKeyMock.mockReset();
-  checkPangramKeyMock.mockResolvedValue({ kind: "ok" });
-  lookupRouteMock.mockReset();
-  lookupRouteMock.mockResolvedValue({ state: "off" });
   loadOAuthTokenMock.mockResolvedValue({
     ok: true,
     token: "sk-ant-oat01-test",
   });
   root = await realpath(await mkdtemp(join(tmpdir(), "runner-")));
   installPath = join(root, "install");
-  await mkdir(join(installPath, "scripts"), { recursive: true });
-  await writeFile(join(installPath, "scripts", "pangram_check.py"), "");
+  await mkdir(installPath, { recursive: true });
+  await writeFile(join(installPath, "SKILL.md"), "");
   installed = join(root, "installed_plugins.json");
   await writeFile(
     installed,
@@ -88,7 +73,7 @@ beforeEach(async () => {
     }),
   );
   xdg = join(root, "xdg");
-  await mkdir(join(xdg, "personify", "stamps"), { recursive: true });
+  await mkdir(join(xdg, "personify"), { recursive: true });
   env = { XDG_CONFIG_HOME: xdg, PATH: process.env.PATH };
 });
 afterEach(async () => {
@@ -101,21 +86,12 @@ function bodyPathFrom(args: string[]): string {
   return rule.slice("Edit(/".length, -1);
 }
 
-async function stamp(bytes: Buffer) {
-  const sha = createHash("sha256").update(bytes).digest("hex");
-  await writeFile(
-    join(xdg, "personify", "stamps", `${sha}.json`),
-    JSON.stringify({ sha256: sha, verdict: "Human", task_id: "t-9" }),
-  );
-  return sha;
-}
-
 // Starts a run, waits for the spawn, and returns the child and its argv.
 async function start(
   text = "some text",
   opts: {
     timeoutMs?: number;
-    destination?: { repo?: string; dir?: string; kind?: string };
+    kind?: string;
   } = {},
 ) {
   const child = makeFakeChild();
@@ -181,53 +157,32 @@ describe("runPersonify", () => {
     }
   });
 
-  it("returns verified with the file bytes when a Human stamp matches", async () => {
+  it("returns the file bytes as the rewritten text", async () => {
     const { child, promise, body } = await start();
-    const bytes = Buffer.from("Final text.\n", "utf8");
-    await writeFile(body, bytes);
-    const sha = await stamp(bytes);
-    child.stdout.emit("data", Buffer.from(json("Passed.")));
+    await writeFile(body, "Final text.\n");
+    child.stdout.emit("data", Buffer.from(json("Done.")));
     child.emit("close", 0);
-    expect(await promise).toEqual({
-      kind: "verified",
-      text: "Final text.\n",
-      sha256: sha,
-      taskId: "t-9",
-    });
+    expect(await promise).toEqual({ kind: "rewritten", text: "Final text.\n" });
   });
 
-  it("returns not_verified with the model's report when no stamp exists", async () => {
-    const { child, promise, body } = await start();
-    await writeFile(body, "Draft.\n");
-    child.stdout.emit("data", Buffer.from(json("Verdict AI, 1.0.")));
-    child.emit("close", 0);
-    const outcome = await promise;
-    expect(outcome).toMatchObject({
-      kind: "not_verified",
-      draft: "Draft.\n",
-      report: "Verdict AI, 1.0.",
-    });
-  });
-
-  // Review focus 3: stamps follow XDG_CONFIG_HOME, as the script writes them.
-  it("looks for stamps under XDG_CONFIG_HOME", async () => {
-    const { child, promise, body } = await start();
-    const bytes = Buffer.from("Final.\n");
-    await writeFile(body, bytes);
-    await stamp(bytes);
-    child.emit("close", 0);
-    expect((await promise).kind).toBe("verified");
-  });
-
-  // Review focus 4: the outcome comes from the file and stamp, not stdout.
-  it("falls back to raw stdout as the report when it is not JSON", async () => {
+  // The model's final message is never the result: only the file is.
+  it("ignores the model's stdout when the file was written", async () => {
     const { child, promise, body } = await start();
     await writeFile(body, "Draft.\n");
     child.stdout.emit("data", Buffer.from("plain words\n"));
     child.emit("close", 0);
-    expect(await promise).toMatchObject({
-      kind: "not_verified",
-      report: "plain words",
+    expect(await promise).toEqual({ kind: "rewritten", text: "Draft.\n" });
+  });
+
+  it("fails when the CLI writes an empty file", async () => {
+    const { child, promise, body } = await start();
+    await writeFile(body, " \n");
+    child.stdout.emit("data", Buffer.from(json("Nothing to say.")));
+    child.emit("close", 0);
+    expect(await promise).toEqual({
+      kind: "failed",
+      error: "the CLI wrote an empty draft",
+      report: "Nothing to say.",
     });
   });
 
@@ -359,151 +314,31 @@ describe("runPersonify", () => {
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
-  it("runs the key preflight against the installed script", async () => {
-    const { child, promise } = await start();
-    expect(checkPangramKeyMock).toHaveBeenCalledWith(
-      join(installPath, "scripts", "pangram_check.py"),
-      env,
-    );
+  it("passes the kind into the CLI instruction", async () => {
+    const { child, promise, args } = await start("t", { kind: "pr" });
+    expect(args[1]).toContain("--kind pr");
     child.emit("close", 1);
     await promise;
   });
 
-  it("fails with the script's message, before spawning, when no key resolves", async () => {
-    checkPangramKeyMock.mockResolvedValue({
-      kind: "missing",
-      error: "no Pangram API key found. Run --install-key.",
-    });
-    const outcome = await runPersonify("text", {
-      installedPluginsPath: installed,
-      env,
-    });
-    expect(outcome).toEqual({
-      kind: "failed",
-      error: "no Pangram API key found. Run --install-key.",
-    });
-    expect(spawnMock).not.toHaveBeenCalled();
-    expect(loadOAuthTokenMock).not.toHaveBeenCalled();
-  });
-
-  it("proceeds as before when the preflight is skipped", async () => {
-    checkPangramKeyMock.mockResolvedValue({
-      kind: "skipped",
-      reason: "the check script predates --check-key",
-    });
-    const { child, promise, body } = await start();
-    await writeFile(body, "Draft.\n");
-    child.emit("close", 0);
-    expect((await promise).kind).toBe("not_verified");
-  });
-
-  it("passes the destination flags into the CLI instruction", async () => {
-    const { child, promise, args } = await start("t", {
-      destination: { repo: "beacon-biosignals/x", kind: "pr" },
-    });
-    expect(args[1]).toContain("--kind pr --repo beacon-biosignals/x");
-    expect(lookupRouteMock).toHaveBeenCalledWith(env, {
-      repo: "beacon-biosignals/x",
-      kind: "pr",
-    });
+  it("allows only the length check script to run", async () => {
+    const { child, promise, args } = await start();
+    const bash = args.filter((a) => a.startsWith("Bash("));
+    expect(bash).toEqual([
+      `Bash(python3 ${installPath}/scripts/length_check.py:*)`,
+    ]);
     child.emit("close", 1);
     await promise;
   });
 
-  it("fails before spawning on a malformed destination", async () => {
+  it("fails before spawning on a malformed kind", async () => {
     const outcome = await runPersonify("t", {
       installedPluginsPath: installed,
       env,
-      destination: { dir: "relative" },
+      kind: "PR --x",
     });
     expect(outcome.kind).toBe("failed");
     expect(spawnMock).not.toHaveBeenCalled();
-  });
-
-  it("says Pangram did not run when the route needs a destination and none was given", async () => {
-    lookupRouteMock.mockResolvedValue({ state: "no_destination" });
-    const { child, promise, body } = await start();
-    await writeFile(body, "Rewritten draft.\n");
-    child.stdout.emit("data", Buffer.from(json("Check refused.")));
-    child.emit("close", 0);
-    const outcome = await promise;
-    expect(outcome).toMatchObject({
-      kind: "not_verified",
-      draft: "Rewritten draft.\n",
-      report: "Check refused.",
-    });
-    expect(outcome.kind === "not_verified" && outcome.note).toContain(
-      "Pangram not run: no destination given",
-    );
-  });
-
-  it("says no check was needed when the route is exempt", async () => {
-    lookupRouteMock.mockResolvedValue({
-      state: "not_needed",
-      outcome: "exempt",
-      rule: "2",
-    });
-    const { child, promise, body } = await start("t", {
-      destination: { repo: "someone/else" },
-    });
-    await writeFile(body, "Draft.\n");
-    child.emit("close", 0);
-    const outcome = await promise;
-    expect(outcome.kind === "not_verified" && outcome.note).toContain(
-      "no Pangram check needed for this destination (route exempt, rule 2)",
-    );
-  });
-
-  it("skips the key preflight when the route keeps the text from Pangram", async () => {
-    checkPangramKeyMock.mockResolvedValue({
-      kind: "missing",
-      error: "no Pangram API key found.",
-    });
-    for (const route of [
-      { state: "not_needed", outcome: "visual", rule: "3" },
-      { state: "no_destination" },
-    ]) {
-      spawnMock.mockReset();
-      checkPangramKeyMock.mockClear();
-      lookupRouteMock.mockResolvedValue(route);
-      const { child, promise, body } = await start("t", {
-        destination: { repo: "someone/else" },
-      });
-      await writeFile(body, "Draft.\n");
-      child.emit("close", 0);
-      expect((await promise).kind).toBe("not_verified");
-      expect(checkPangramKeyMock).not.toHaveBeenCalled();
-    }
-  });
-
-  it("still runs the key preflight when the route asks for a check", async () => {
-    lookupRouteMock.mockResolvedValue({ state: "check" });
-    checkPangramKeyMock.mockResolvedValue({
-      kind: "missing",
-      error: "no Pangram API key found.",
-    });
-    const outcome = await runPersonify("t", {
-      installedPluginsPath: installed,
-      env,
-      destination: { repo: "beacon-biosignals/x" },
-    });
-    expect(outcome).toEqual({
-      kind: "failed",
-      error: "no Pangram API key found.",
-    });
-    expect(spawnMock).not.toHaveBeenCalled();
-  });
-
-  it("adds no note when the route asked for a check", async () => {
-    lookupRouteMock.mockResolvedValue({ state: "check" });
-    const { child, promise, body } = await start("t", {
-      destination: { repo: "beacon-biosignals/x" },
-    });
-    await writeFile(body, "Draft.\n");
-    child.emit("close", 0);
-    const outcome = await promise;
-    expect(outcome.kind).toBe("not_verified");
-    expect(outcome).not.toHaveProperty("note");
   });
 
   it("keeps the 180s budget", () => {

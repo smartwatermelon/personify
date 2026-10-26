@@ -52,33 +52,6 @@ build output to stderr, since stdout is the MCP protocol channel; when a
 build fails it prints the reason to stderr and exits non-zero, and Desktop
 shows the server as failed.
 
-## Pangram API key
-
-Every call is checked by Pangram, so the machine needs the Pangram API key.
-Desktop starts the server with a near-empty environment and no terminal, so
-neither `PANGRAM_API_KEY` from your shell nor `op read` works there. The key
-lives in the macOS login Keychain instead. Install it once, from a terminal
-signed in to 1Password:
-
-```bash
-python3 <installPath>/scripts/pangram_check.py --install-key
-```
-
-`<installPath>` is the personify plugin's install path, listed under
-`personify@personify` in `~/.claude/plugins/installed_plugins.json`. Without
-1Password, add it by hand; `security` prompts for the key:
-
-```bash
-security add-generic-password -U -a "$(id -un)" -s personify-pangram-key -w
-```
-
-Before each call the bridge runs `pangram_check.py --check-key`, which makes
-no network call. When no key resolves, the call fails at once with the
-script's message, which names both commands above, instead of coming back
-`NOT VERIFIED` after a full draft. An installed skill older than 2.0.2 does
-not know the flag; the bridge then skips the preflight and behaves as bridge
-0.3.0 did.
-
 ## Authenticate
 
 Claude Desktop cannot use your regular `claude` login for this bridge.
@@ -176,9 +149,10 @@ looks for it there):
 
 ## Known costs (accepted, not engineered around)
 
-- Latency: each call is a cold CLI start, one model draft, and one Pangram
-  check; measured at 30 to 40 s and about $0.30 of Claude usage plus $0.003
-  of Pangram on 2026-09-22.
+- Latency: each call is a cold CLI start and one model draft. Bridge 0.6
+  also ran a detector check. With it, a call took 30 to 40 seconds and used
+  about 30 cents of Claude usage (measured 2026-09-22). Dropping that check
+  removed a step and added none.
 - Requires the `claude` CLI to be installed and on `PATH` for whatever user
   account runs Desktop, with the `personify` plugin installed
   (`/plugin marketplace add twistedmelonman/personify && /plugin install personify@personify`),
@@ -186,64 +160,43 @@ looks for it there):
 
 ## What the tool returns
 
-The bridge runs the `personify:personify` skill through the `claude` CLI,
-then decides the outcome from the Pangram stamp the skill's own check script
-writes, not from the model's report of what it did.
+The bridge runs the `personify:personify` skill through the `claude` CLI.
+It returns what the skill wrote to its draft file, not the model's report of
+what it did. There is no detector check and no verdict: 0.7.0 removed both.
 
 | Outcome | How the bridge knows | `content` | `isError` |
 |---|---|---|---|
-| verified | the draft file exists and a stamp at `<config root>/stamps/<sha256>.json` parses, has `verdict: "Human"`, and a matching `sha256` | First block: the bytes of the draft file, nothing else | false |
-| not_verified | the draft file exists, no valid stamp | The `NOT VERIFIED` line, then the model's report, then the draft in a fence | false |
-| failed | the draft file is missing, or the CLI timed out, failed to spawn, or exited non-zero, or a precondition failed | `personify failed: <reason>`, plus the model's last output, fenced, when there is one | true |
-
-The `NOT VERIFIED` line is exactly:
-
-```text
-NOT VERIFIED: Pangram did not pass this text. Review it before sending.
-```
-
-Not verified is not an error. A draft awaiting review is a normal result,
-and `isError: true` tends to make the calling model retry, which would be a
-second submission.
+| rewritten | the CLI exited 0 and the draft file exists and is not blank | First block: the bytes of the draft file, nothing else | false |
+| failed | the draft file is missing or blank, or the CLI timed out, failed to spawn, or exited non-zero, or a precondition failed | `personify failed: <reason>`, plus the model's last output, fenced, when there is one | true |
 
 `structuredContent` carries the same result in fields, declared through the
-tool's `outputSchema`: `outcome`, then `text` when verified, `report` and
-`draft` when not verified, and `error` plus an optional `report` when failed,
-along with `sha256`, `task_id`, and `staleness` where they apply. The text is
-in both places because clients differ in which one reaches the model. In a
-live Desktop call on 2026-09-23, with a structured result that held only the
-outcome, Desktop's model received those fields and no content text at all, so
-it had nothing to show. The structured `text` is the same bytes as the first
-content block. When the result is verified, the
-first content block is exactly the stamped bytes: nothing is prepended or
-appended to it, or the bytes delivered would no longer be the bytes that
-were stamped. This is not necessarily every byte Pangram scored, since
-`pangram_check.py` strips markup such as fenced code before sending text to
-Pangram. A version-staleness note, when there is one, rides in a separate
-second content block and in `structuredContent.staleness`.
+tool's `outputSchema`. The fields are `outcome`, then `text` when rewritten,
+or `error` and an optional `report` when failed, plus `staleness` where it
+applies. The text is in both places because clients differ in which one
+reaches the model. A live Desktop call on 2026-09-23 returned a structured
+result that held only the outcome. Desktop's model received those fields and
+no content text at all, so it had nothing to show. The structured `text` is
+the same bytes as the first content block, and nothing is prepended or
+appended to it. A version-staleness note, when there is one, rides in a
+separate second content block and in `structuredContent.staleness`.
 
-The tool description is conditional on the outcome and covers both forms.
-For the structured form it keys on `outcome`. For the content form only the
-FIRST content block matters: a second block, when there is one,
-is a plugin staleness note for the user, not part of the text. When the call
-did not error and that first block does not start with `NOT VERIFIED` or
-`personify failed`, it is final and should be relayed exactly as returned.
-Otherwise, whether the first block starts with `NOT VERIFIED` or
-`personify failed`, it should be shown to the reader as returned, with
+The tool description covers both forms. For the structured form it keys on
+`outcome`. For the content form only the FIRST content block matters. A
+second block, when there is one, is a plugin staleness note for the user,
+not part of the text. Say the call did not error, and that first block does
+not start with `personify failed`. Then it is final, and is relayed exactly
+as returned. Otherwise it should be shown to the reader as returned, with
 nothing in it sent, posted, or published anywhere.
 
+The tool takes `text`, and an optional `kind` (`pr`, `commit`,
+`pr-comment`, `copy`, and so on). The kind goes into the instruction. The
+skill then applies that kind's rules, and runs its length check with
+`--kind` when the checker knows that kind. Bridge 0.6 and earlier also took
+`repo` and `dir` to route the detector check. A caller that still sends
+them is not refused, and both are ignored.
+
 Each call has a 180 s budget. If it expires before the CLI finishes, the
-outcome is `failed`. The CLI's own Bash tool has a separate limit, which
-follows `BASH_DEFAULT_TIMEOUT_MS` from your Claude Code settings; user-level
-settings load in the spawned CLI. On the maintainer's machine that is
-300000 (300 s), longer than the bridge's budget, so the bridge's 180 s fires
-first and the outcome is `failed`. If your setting is shorter than 180 s,
-the Bash limit can cut the check script off first; no stamp gets written
-then, so the result comes back `not_verified` rather than `verified`. Even
-then, stamps are content-addressed by the sha256 of the draft bytes, so if
-an earlier call already produced a valid stamp for those exact bytes, a
-cut-off run can still come back `verified`. That is by design, not a race:
-identical bytes were already checked and passed.
+outcome is `failed`.
 
 ## Permissions
 
@@ -254,8 +207,8 @@ a prompt. Each placeholder is an absolute path, so the rule starts with
 `//`, which is how Claude Code spells a filesystem-root path in a permission
 rule:
 
-- `Bash(python3 <installPath>/scripts/pangram_check.py:*)`, running the
-  installed personify plugin's own check script.
+- `Bash(python3 <installPath>/scripts/length_check.py:*)`, running the
+  installed personify plugin's own length checker.
 - `Read(/<installPath>/**)`, the installed personify plugin's own files.
 - `Read(/<voice guide path>)`, only present when a voice guide resolves.
 - `Read(/<voice guide realpath>)`, only present when the voice guide is a
@@ -263,8 +216,8 @@ rule:
   against a symlink separately from a Read against its resolved target, so a
   symlinked guide (the usual case for `~/.config/personify/VOICE.md`) needs
   both rules.
-- `Read(/<body.md realpath>)`, so the check can take the draft through a
-  `< body.md` redirect. The CLI treats that redirect as a read of a file
+- `Read(/<body.md realpath>)`, so the length check can take the draft
+  through a `< body.md` redirect. The CLI treats that redirect as a read of a file
   outside the working directory, and denies it without this rule.
 - `Edit(/<body.md realpath>)`, the one draft file the skill writes to. Writes
   are granted through `Edit`, not `Write`.
@@ -285,32 +238,24 @@ rules above; it is not sandboxed away by this allowlist.
 Run this after any change to `mcp-server/src/`, since the automated test
 suite mocks the `claude` subprocess and cannot catch real invocation drift.
 
-`scripts/pangram_check.py` skips anything under 40 words (`WORD_FLOOR`) and
-writes no stamp for a skipped check, so a short input can never come back
-`verified`; every step below uses input at or above that floor.
-
 1. Build (`npm run build`), configure Desktop per above, fully quit and
    restart Desktop (not just start a new chat: the MCP server process is
    started per Desktop launch).
-2. In a **fresh** Desktop chat (no prior priming about personify), ask
-   Desktop to personify a substantive paragraph of at least 40 words,
-   containing at least one em dash. Use a long, substantive input beyond
-   the floor where practical, since
+2. Open a **fresh** Desktop chat, with no prior priming about personify.
+   Ask Desktop to personify a paragraph of at least 40 words that contains
+   at least one em dash. Use a long, substantive input where practical. The
+   issue
    [personify tool leaks internal instruction preamble into its output](https://github.com/twistedmelonman/personify/issues/50)
    reproduced on long-form drafts and not on short ones.
-3. Confirm the outcome matches one of these three shapes (see "What the
+3. Confirm the outcome matches one of these two shapes (see "What the
    tool returns" above):
-   - **verified**: the reply is the edited text alone, with no em dash, no
-     `NOT VERIFIED` line, and no relay instruction shown to the reader.
-   - **not_verified**: the reply starts with the `NOT VERIFIED` line, then
-     the model's report, then the draft in a fenced block; confirm the
-     `NOT VERIFIED` label itself is visible in the Desktop UI, not silently
-     swallowed or paraphrased away.
+   - **rewritten**: the reply is the edited text alone, with no em dash and
+     no relay instruction shown to the reader.
    - **failed**: the reply reads `personify failed: <reason>`, shown to
      Desktop as a tool error, not as text to relay.
-   In every case, confirm Desktop calls the `personify` tool (visible in
-   its tool-call UI) and that a `not_verified` or `failed` result is never
-   sent, posted, or published anywhere by Desktop.
+   In every case, confirm Desktop calls the `personify` tool, which shows
+   in its tool-call UI. Also confirm Desktop never sends, posts, or
+   publishes a `failed` result anywhere.
 4. Repeat step 2 in a second, separate fresh Desktop session to confirm no
    session-specific priming is required.
 5. Break it on purpose: temporarily rename the installed personify plugin

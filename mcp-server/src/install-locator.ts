@@ -11,7 +11,6 @@ export const DEFAULT_INSTALLED_PLUGINS_PATH = join(
 const PLUGIN_KEY = "personify@personify";
 
 export type InstalledEntry = { installPath: string; version: string };
-export type InstallLocation = InstalledEntry & { scriptPath: string };
 
 export async function readInstalledEntry(
   path: string = DEFAULT_INSTALLED_PLUGINS_PATH,
@@ -31,18 +30,17 @@ export async function readInstalledEntry(
   }
 }
 
-// The bridge runs the installed copy of the check script, the same one the
-// CLI's skill loads, so there is one script with three callers.
+// Points the CLI at the installed skill, so a missing or half-removed install
+// fails before a run.
 export async function locateInstall(
   path: string = DEFAULT_INSTALLED_PLUGINS_PATH,
-): Promise<InstallLocation | null> {
+): Promise<InstalledEntry | null> {
   const entry = await readInstalledEntry(path);
   if (!entry || !entry.installPath.startsWith("/")) return null;
-  const scriptPath = join(entry.installPath, "scripts", "pangram_check.py");
   try {
-    await access(scriptPath, constants.R_OK);
+    await access(join(entry.installPath, "SKILL.md"), constants.R_OK);
   } catch {
     return null;
   }
-  return { ...entry, scriptPath };
+  return entry;
 }

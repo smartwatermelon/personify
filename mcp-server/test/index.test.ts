@@ -14,9 +14,6 @@ vi.mock("../src/version-check.js", () => ({
 
 const { handlePersonifyCall, TOOL_DESCRIPTION } =
   await import("../src/index.js");
-const { NOT_VERIFIED_LINE } = await import("../src/result-format.js");
-
-const sha = "b".repeat(64);
 
 describe("handlePersonifyCall", () => {
   beforeEach(() => {
@@ -27,31 +24,26 @@ describe("handlePersonifyCall", () => {
 
   it("calls the runner with the text only", async () => {
     runPersonifyMock.mockResolvedValue({
-      kind: "verified",
+      kind: "rewritten",
       text: "t",
-      sha256: sha,
     });
     await handlePersonifyCall("raw");
     expect(runPersonifyMock).toHaveBeenCalledWith("raw");
   });
 
-  it("passes a destination through to the runner", async () => {
+  it("passes the kind through to the runner", async () => {
     runPersonifyMock.mockResolvedValue({
-      kind: "verified",
+      kind: "rewritten",
       text: "t",
-      sha256: sha,
     });
-    await handlePersonifyCall("raw", { kind: "copy" });
-    expect(runPersonifyMock).toHaveBeenCalledWith("raw", {
-      destination: { kind: "copy" },
-    });
+    await handlePersonifyCall("raw", "copy");
+    expect(runPersonifyMock).toHaveBeenCalledWith("raw", { kind: "copy" });
   });
 
-  it("returns verified text alone in the first block", async () => {
+  it("returns the rewritten text alone in the first block", async () => {
     runPersonifyMock.mockResolvedValue({
-      kind: "verified",
+      kind: "rewritten",
       text: "Final.\n",
-      sha256: sha,
     });
     const r = await handlePersonifyCall("raw");
     expect(r.isError).toBe(false);
@@ -60,9 +52,8 @@ describe("handlePersonifyCall", () => {
 
   it("puts a trimmed staleness note in a second block", async () => {
     runPersonifyMock.mockResolvedValue({
-      kind: "verified",
+      kind: "rewritten",
       text: "Final.",
-      sha256: sha,
     });
     checkPersonifyVersionMock.mockResolvedValue({
       stale: true,
@@ -72,20 +63,6 @@ describe("handlePersonifyCall", () => {
     const r = await handlePersonifyCall("raw");
     expect(r.content[0].text).toBe("Final.");
     expect(r.content[1].text).toBe("[stale note]");
-  });
-
-  it("labels a not-verified draft", async () => {
-    runPersonifyMock.mockResolvedValue({
-      kind: "not_verified",
-      draft: "D.",
-      sha256: sha,
-      report: "AI.",
-    });
-    const r = await handlePersonifyCall("raw");
-    expect(r.isError).toBe(false);
-    expect((r.content[0].text as string).startsWith(NOT_VERIFIED_LINE)).toBe(
-      true,
-    );
   });
 
   it("surfaces a failure as a tool error", async () => {
@@ -113,9 +90,8 @@ describe("handlePersonifyCall", () => {
 
   it("carries no _meta relay key", async () => {
     runPersonifyMock.mockResolvedValue({
-      kind: "verified",
+      kind: "rewritten",
       text: "t",
-      sha256: sha,
     });
     const r = await handlePersonifyCall("raw");
     expect(r._meta).toBeUndefined();
@@ -123,14 +99,14 @@ describe("handlePersonifyCall", () => {
 });
 
 describe("TOOL_DESCRIPTION", () => {
-  it("tells the model to pass the destination", () => {
-    for (const field of ['"dir"', '"repo"', '"kind"', "copy"]) {
+  it("tells the model to pass the kind", () => {
+    for (const field of ['"kind"', "copy"]) {
       expect(TOOL_DESCRIPTION).toContain(field);
     }
   });
 
-  it("covers both the final and the NOT VERIFIED branch", () => {
-    expect(TOOL_DESCRIPTION).toContain("NOT VERIFIED");
+  it("tells the model to relay the text exactly", () => {
+    expect(TOOL_DESCRIPTION).toContain("relay exactly that");
     expect(TOOL_DESCRIPTION).toContain("exactly as returned");
     expect(TOOL_DESCRIPTION).toMatch(/do not send/i);
   });
@@ -143,11 +119,15 @@ describe("TOOL_DESCRIPTION", () => {
   // A client that shows the model only structuredContent must still be told
   // which field holds the text for each outcome.
   it("names the structured fields for every outcome", () => {
-    for (const field of ["outcome", "verified", "not_verified", "failed"]) {
+    for (const field of ["outcome", "rewritten", "failed"]) {
       expect(TOOL_DESCRIPTION).toContain(field);
     }
-    for (const field of ["text", "report", "draft", "error"]) {
+    for (const field of ["text", "report", "error"]) {
       expect(TOOL_DESCRIPTION).toContain(`"${field}"`);
     }
+  });
+
+  it("no longer mentions a detector verdict", () => {
+    expect(TOOL_DESCRIPTION).not.toMatch(/verified|detector|stamp/i);
   });
 });

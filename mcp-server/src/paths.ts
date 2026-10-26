@@ -2,9 +2,8 @@ import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 
-// Must match config_root() in scripts/pangram_check.py, which decides where
-// stamps are written. An empty XDG_CONFIG_HOME falls through, as it does in
-// Python's `or`.
+// Same config directory as SKILL.md Step 0. An empty XDG_CONFIG_HOME falls
+// through to ~/.config.
 export function configRoot(env: NodeJS.ProcessEnv = process.env): string {
   return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "personify");
 }

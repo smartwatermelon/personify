@@ -1,24 +1,20 @@
 # Personify
 
-An agent skill that keeps text from reading as machine-written before anyone else reads it: emails, PR descriptions and review comments, docs, blog drafts, essays. The draft follows your own register, and then a detector checks the result rather than the skill declaring it clean.
+An agent skill that keeps text from reading as machine-written before anyone else reads it. It covers emails, PR descriptions and review comments, docs, blog drafts, and essays. The draft follows your own register, stays inside a length cap for its surface, and keeps the structural rules for PR descriptions and code comments. It is a style and voice advisor: it does not certify the result.
 
-Personify 2.0 is a break from 1.x. The hand-maintained taxonomy of AI-writing tells is gone, along with the A/B harness and the evidence corpus that fed it. Three things replace them: a per-user voice guide, current model judgment about what reads as machine-written, and [Pangram](https://www.pangram.com/), which returns a verdict on the finished text.
+Personify 2.0 was a break from 1.x. The hand-maintained taxonomy of AI-writing tells is gone, along with the A/B harness and the evidence corpus that fed it. Two things replace them: a per-user voice guide, and current model judgment about what reads as machine-written. 3.0 removes the AI-text detector check that 2.x ran on every result. It cost money on every call and decided nothing a human reviewer did not decide anyway.
 
 It started as a structural cousin of [blader/humanizer](https://github.com/blader/humanizer), with the same idea and the same MIT license, and [LICENSE](LICENSE) credits it. The wording, the rules, and the version history here are independent and were never synced against that project.
 
 ## How it works
 
 1. **Draft**, guided by your `VOICE.md` and seven hard rules, among them no dashes, never invent a fact, preserve every fact, and name the actor.
-2. **Check.** The result goes to `scripts/pangram_check.py`, which submits it to Pangram once and reports a verdict.
-3. **A `Human` verdict passes.** Anything else stops and reports the score and the flagged spans.
+2. **Fit the cap.** The length checker, `scripts/length_check.py`, counts the text against the cap for its kind: commit, PR, comment, and so on. It says by how much the text is over, and the draft is rewritten until it fits.
+3. **Return the text.** What comes back is what the writer would send on that surface, as-is.
 
-There is no edit loop, and this is deliberate. Editing a draft toward the detector was measured and does not work: two rounds of rewriting moved the score from 0.990 to 0.989 to 1.000, so the second rewrite scored worse than the original. A failing verdict means rewriting from the source material, or routing the text to a human. It never means editing harder.
+## Structure, not just prose
 
-Text under 40 words is skipped rather than classified. Below that the detector produces false passes, including the dangerous direction where AI-written prose comes back Human.
-
-## What a detector cannot see
-
-Two rules survive independently of Pangram, because Pangram scores how prose *reads* and cannot see how an artifact is *shaped*. It will pass a pull request description carrying ceremonial headers, bolded labels, and a "ready to merge upon approval" sign-off, as long as the sentences read human.
+Two rules are about how an artifact is *shaped*, not how its prose *reads*. Take a pull request description with ceremonial headers, bolded labels, and a "ready to merge upon approval" sign-off. Anything that scores prose will pass it, as long as the sentences read human.
 
 - **GitHub PR descriptions.** No headers, no bullets, no bold, no dashes. Four parts as plain prose: the problem, the evidence, the solution, references.
 - **Code comments.** Never more than 1:1 comment lines to code lines, and far lower in practice. A comment is for what the code cannot say.
@@ -27,7 +23,7 @@ Both are universal rules and both outrank a personal `VOICE.md`, which is otherw
 
 ## Installation
 
-The runtime artifact is the skill directory, not `SKILL.md` alone: `scripts/pangram_check.py`, `scripts/length_check.py`, `rules/structure.md`, and `VOICE.example.md` ship with it. Step 0 falls back to `VOICE.example.md` from the skill directory when no voice guide exists.
+The runtime artifact is the skill directory, not `SKILL.md` alone: `scripts/length_check.py`, `rules/structure.md`, and `VOICE.example.md` ship with it. Step 0 falls back to `VOICE.example.md` from the skill directory when no voice guide exists.
 
 ### Claude Code plugin
 
@@ -51,44 +47,9 @@ Reload or start a new session after installing.
 
 ### Claude Desktop
 
-Claude Desktop reads skills from its own skills directory. Copy the same four paths into a `personify/` folder there, then restart Desktop.
+Claude Desktop reads skills from its own skills directory. Copy the same paths into a `personify/` folder there, then restart Desktop.
 
 In practice Desktop has been unreliable about trusting its own filesystem connector state and about Step 0's "load `VOICE.md` and treat it as authoritative" instruction. See [`mcp-server/README.md`](mcp-server/README.md) for a bridge that routes Desktop's calls through the Claude Code CLI instead.
-
-## Pangram API key
-
-The check needs a Pangram account. If you sign up through [my referral link](https://pangram.cello.so/hxm2HIQtCr7), you get 20% off the first three months of your subscription, and I get $10 if you sign up for a paid plan.
-
-The check needs a key, and each machine needs it installed once. 1Password holds the canonical copy; the macOS login Keychain holds the per-machine copy. After installing the plugin, run this once from a terminal signed in to 1Password:
-
-```bash
-python3 ~/.claude/plugins/cache/personify/personify/<version>/scripts/pangram_check.py --install-key
-```
-
-The exact path is the plugin's install path (listed in `~/.claude/plugins/installed_plugins.json`), or `scripts/pangram_check.py` in a copied skill directory. It reads the key with `op read` and stores it as the Keychain item `personify-pangram-key`. Without 1Password, add the item by hand; `security` prompts for the key, which keeps it out of shell history:
-
-```bash
-security add-generic-password -U -a "$(id -un)" -s personify-pangram-key -w
-```
-
-`--check-key` confirms a key resolves, without calling Pangram. The client resolves one from four places, in order:
-
-1. `PANGRAM_API_KEY` in the environment, which wins as a deliberate override.
-2. The login Keychain item `personify-pangram-key`, skipped where `security` does not exist.
-3. `~/.config/personify/pangram-key`, mode 600 in a directory that is not group- or world-writable.
-4. `op read "op://Automation/Pangram/API Key"`, the 1Password bootstrap path.
-
-The Keychain and the file have to exist as sources because a headless caller (an MCP server under launchd, a git hook) gets no exported environment, so neither `PANGRAM_API_KEY` nor the terminal session that `op` depends on is there. Off macOS, use the file:
-
-```bash
-mkdir -p ~/.config/personify
-printf '%s' "$PANGRAM_API_KEY" > ~/.config/personify/pangram-key
-chmod 600 ~/.config/personify/pangram-key
-```
-
-With no key the check exits 5 (unavailable), names the install command, and the text routes to manual review. It never reports an outage as a pass.
-
-Pangram 4 is the production model, pinned by name. Pangram bills it at $0.05 per started 100 words, so a 400-word text costs about $0.20, and the check prints the estimate. `PANGRAM_MODEL` overrides the pin.
 
 ## Usage
 
@@ -102,15 +63,13 @@ Personify this text: [paste text]
 Personify the writing in docs/launch-post.md
 ```
 
-The check itself runs standalone too. Redirect the file into stdin rather than piping through `echo`, because the stamp is keyed to the exact bytes and `echo` appends a newline:
+The length check runs standalone too:
 
 ```bash
-python3 scripts/pangram_check.py < body.md
+python3 scripts/length_check.py --kind pr < body.md
 ```
 
-Every result also writes a check record to `~/.config/personify/checks/<sha256>.json`, keyed the same way, and the review gate's `stage` step refuses to queue a file with no matching record. So the redirect decides not just what the stamp is keyed to, but whether the text can be staged at all.
-
-Exit codes: 0 pass, 2 AI, 3 mixed, 4 skipped (under the word floor), 5 unavailable.
+Exit codes: 0 inside the cap, 1 over it, 5 bad usage or an internal error.
 
 ## Voice guide
 
