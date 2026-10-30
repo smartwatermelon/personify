@@ -11,6 +11,6 @@ updates:
     # cooldown is a valid dependabot.yml key (GitHub docs:
     # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#cooldown)
     cooldown:
-      default-days: 3
+      default-days: 7
     commit-message:
       prefix: "chore"
